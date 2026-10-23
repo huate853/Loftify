@@ -12,7 +12,9 @@ import '../../Models/download_task.dart';
 import '../../Screens/Download/batch_download_screen.dart';
 import '../../Utils/app_provider.dart';
 import '../../Utils/enums.dart';
+import '../../Utils/global_filter_overlay.dart';
 import '../../Utils/like_archive_util.dart';
+import '../../Utils/my_content_filter.dart';
 import '../../Utils/paged_data_controller.dart';
 import '../../Widgets/Item/item_builder.dart';
 import '../../Widgets/PostItem/common_info_post_item_builder.dart';
@@ -137,8 +139,9 @@ class _LikeScreenState extends BaseDynamicState<LikeScreen>
     final rawItems = response['items'] is List
         ? List<dynamic>.from(response['items'] as List)
         : const <dynamic>[];
+    final filteredRawItems = MyContentFilter.filterRawList(rawItems);
     final items = <PostDetailData>[];
-    for (final rawItem in rawItems) {
+    for (final rawItem in filteredRawItems) {
       if (rawItem is! Map) continue;
       try {
         items.add(PostDetailData.fromJson(
@@ -193,12 +196,18 @@ class _LikeScreenState extends BaseDynamicState<LikeScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      backgroundColor: widget.infoMode == InfoMode.me
-          ? ChewieTheme.getBackground(context)
-          : Colors.transparent,
-      appBar: widget.infoMode == InfoMode.me ? _buildAppBar() : null,
-      body: _buildBody(),
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        _refreshController.callRefresh();
+      },
+      child: Scaffold(
+        backgroundColor: widget.infoMode == InfoMode.me
+            ? ChewieTheme.getBackground(context)
+            : Colors.transparent,
+        appBar: widget.infoMode == InfoMode.me ? _buildAppBar() : null,
+        body: _buildBody(),
+      ),
     );
   }
 

@@ -15,6 +15,7 @@ import 'package:loftify/Utils/app_provider.dart';
 import 'package:loftify/Utils/enums.dart';
 import 'package:provider/provider.dart';
 
+import '../../Utils/content_settings.dart';
 import '../../Utils/hive_util.dart';
 import '../../Utils/tab_state_util.dart';
 import '../../Utils/uri_util.dart';
@@ -156,6 +157,7 @@ class SearchScreenState extends BaseDynamicState<SearchScreen>
   }
 
   Future<void> fetchGuessList() async {
+    if (ContentSettings.blockEveryoneSearch) return;
     final request = ++_guessRequest;
     bool isCurrent() => mounted && request == _guessRequest;
     try {
@@ -177,6 +179,7 @@ class SearchScreenState extends BaseDynamicState<SearchScreen>
   }
 
   Future<void> fetchRankList() async {
+    if (ContentSettings.blockRank) return;
     final request = ++_rankRequest;
     bool isCurrent() => mounted && request == _rankRequest;
     try {
@@ -340,12 +343,10 @@ class SearchScreenState extends BaseDynamicState<SearchScreen>
     bool showSearchHistory = ChewieHiveUtil.getBool(
         HiveUtil.showSearchHistoryKey,
         defaultValue: false);
-    bool showSearchGuess = ChewieHiveUtil.getBool(HiveUtil.showSearchGuessKey,
-        defaultValue: false);
+    bool showSearchGuess = !ContentSettings.blockEveryoneSearch;
     bool showSearchConfig = ChewieHiveUtil.getBool(HiveUtil.showSearchConfigKey,
         defaultValue: true);
-    bool showSearchRank =
-        ChewieHiveUtil.getBool(HiveUtil.showSearchRankKey, defaultValue: false);
+    bool showSearchRank = !ContentSettings.blockRank;
     return CustomScrollView(
       controller: _scrollController,
       slivers: [
@@ -789,8 +790,6 @@ class SearchScreenState extends BaseDynamicState<SearchScreen>
 
   @override
   List<ScrollController> getScrollControllers() {
-    // The covered landing list must not counteract suggestion scroll events
-    // when the navigation bar changes the viewport padding.
     return [_sugList.isNotEmpty ? _suggestScrollController : _scrollController];
   }
 }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../Utils/app_provider.dart';
 import '../../Utils/content_settings.dart';
 import '../../Utils/enums.dart';
+import 'package:provider/provider.dart';
 
-/// 呼出右下角的模块开关面板
 Future<void> showUiConsole(BuildContext context) {
   return showModalBottomSheet(
     context: context, isScrollControlled: true, showDragHandle: true,
@@ -10,7 +11,6 @@ Future<void> showUiConsole(BuildContext context) {
   );
 }
 
-/// ================= 右上角的作品过滤浮框 =================
 class FilterConsole extends StatefulWidget {
   const FilterConsole({super.key});
   @override
@@ -128,26 +128,24 @@ class _FilterConsoleState extends State<FilterConsole> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("隐藏屏蔽词内容"),
+            const Text("隐藏操作台标签 (防窥视)"),
             Switch(value: ContentSettings.hideKeywords, onChanged: (v) => setState(() => ContentSettings.hideKeywords = v)),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: TextField(controller: _keywordController, decoration: const InputDecoration(hintText: '输入屏蔽词', isDense: true), onSubmitted: (_) => _addKeyword())),
+            Expanded(child: TextField(controller: _keywordController, decoration: const InputDecoration(hintText: '输入屏蔽词，如：abo', isDense: true), onSubmitted: (_) => _addKeyword())),
             IconButton(icon: const Icon(Icons.add), onPressed: _addKeyword),
           ],
         ),
         const SizedBox(height: 8),
         if (ContentSettings.hideKeywords)
-          // 如果勾选了隐藏，不显示具体词，直接连成一段“屏蔽词1屏蔽词2”
           Text(
             _keywords.asMap().entries.map((e) => '屏蔽词${e.key + 1}').join(''),
             style: const TextStyle(fontSize: 14, color: Colors.grey),
           )
         else
-          // 没勾选，正常显示一个个气泡
           Wrap(
             spacing: 8, runSpacing: 8,
             children: _keywords.map((k) => InputChip(
@@ -162,10 +160,14 @@ class _FilterConsoleState extends State<FilterConsole> {
   }
 }
 
-/// ================= 欢迎页 =================
 class WelcomeScreen extends StatelessWidget {
   const WelcomeScreen({super.key});
-  void _goSearch() => panelScreenState?.jumpToPage(SideBarChoice.Search.index);
+
+  // ===== 修复点：直接通过 appProvider 切换 Tab，不再依赖 panelScreenState =====
+  void _goSearch(BuildContext context) {
+    context.read<AppProvider>().sidebarChoice = SideBarChoice.Search;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -179,7 +181,13 @@ class WelcomeScreen extends StatelessWidget {
               const SizedBox(height: 20),
               Text('欢迎来到老福特', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(height: 12),
-              Text('点击左侧搜索你感兴趣的标签', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              Text('点击下方按钮搜索你感兴趣的标签', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 32),
+              FilledButton.icon(
+                onPressed: () => _goSearch(context),
+                icon: const Icon(Icons.search),
+                label: const Text('开始搜索'),
+              ),
             ],
           ),
         ),
@@ -188,7 +196,6 @@ class WelcomeScreen extends StatelessWidget {
   }
 }
 
-/// ================= 右下角的 UI 模块开关 =================
 class UiConsole extends StatefulWidget {
   const UiConsole({super.key});
   @override

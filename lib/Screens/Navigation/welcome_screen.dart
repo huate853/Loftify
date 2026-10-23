@@ -1,282 +1,518 @@
+import 'dart:async';
+
+import 'package:awesome_chewie/awesome_chewie.dart';
+import 'package:extended_nested_scroll_view/extended_nested_scroll_view.dart';
 import 'package:flutter/material.dart';
+import 'package:loftify/Api/recommend_api.dart';
+import 'package:loftify/Widgets/PostItem/recommend_flow_item_builder.dart';
+import 'package:provider/provider.dart';
 
+import '../../Models/recommend_response.dart';
+import '../../Theme/loftify_design_theme.dart';
+import '../../Utils/app_provider.dart';
+import '../../Utils/lottie_files.dart';
+import '../../Utils/paged_data_controller.dart';
+import '../../Widgets/loftify_icons.dart';
+import '../../l10n/l10n.dart';
+import 'search_screen.dart';
+// ===== 引入 =====
 import '../../Utils/content_settings.dart';
-import '../../Utils/enums.dart';
+import '../../Utils/post_filter_util.dart';
+import 'welcome_screen.dart';
+// ====================
 
-/// ===== 右下角的模块开关操作台 =====
-Future<void> showUiConsole(BuildContext context) {
-  return showModalBottomSheet(
-    context: context,
-    isScrollControlled: true,
-    showDragHandle: true,
-    builder: (_) => const UiConsole(),
-  );
-}
+int krefreshTimeout = 300;
 
-/// ===== 首页右上角的作品过滤浮框内容 =====
-class FilterConsole extends StatefulWidget {
-  const FilterConsole({super.key});
+typedef _ExploreCursor = ({int offset, int page, int feed});
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({
+    super.key,
+    this.scrollController,
+  });
+
+  final ScrollController? scrollController;
+
+  static const String routeName = "/nav/home";
 
   @override
-  State<FilterConsole> createState() => _FilterConsoleState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _FilterConsoleState extends State<FilterConsole> {
-  late TextEditingController _minController;
-  late TextEditingController _maxController;
-  late TextEditingController _keywordController;
-  late List<String> _keywords;
+class HomeScreenState extends BaseDynamicState<HomeScreen>
+    with
+        TickerProviderStateMixin,
+        AutomaticKeepAliveClientMixin,
+        ScrollToHideMixin,
+        BottomNavgationMixin {
+  @override
+  bool get wantKeepAlive => true;
+  int lastRefreshTime = 0;
+  final EasyRefreshController _refreshController = EasyRefreshController();
+  late final ScrollController _scrollController =
+      widget.scrollController ?? ScrollController();
+  final ScrollController _nestedScrollController = ScrollController();
+  ScrollController? _nestedInnerScrollController;
+  late final PagedDataController<PostListItem, int, _ExploreCursor, void>
+      _pagingController;
+  late AnimationController _refreshRotationController;
+  final ScrollToHideController _scrollToHideController =
+      ScrollToHideController();
+      
+  // 控制右上角浮框
+  bool _showFilterOverlay = false;
+
+  Future<void> refresh() async {
+    await _scrollHomeToTop();
+    if (mounted) await _triggerRefresh();
+  }
 
   @override
   void initState() {
     super.initState();
-    _minController = TextEditingController(text: ContentSettings.minLikes.toString());
-    _maxController = TextEditingController(text: ContentSettings.maxLikes >= 999999999 ? '' : ContentSettings.maxLikes.toString());
-    _keywordController = TextEditingController();
-    _keywords = List.from(ContentSettings.keywords);
+    _refreshRotationController = AnimationController(
+      duration: const Duration(milliseconds: 1000),
+      vsync: this,
+    );
+    _pagingController = PagedDataController(
+      initialCursor: (offset: 0, page: 0, feed: 0),
+      keyOf: (item) => item.postData?.postView.id ?? item.itemId,
+      loader: _loadExplorePage,
+      onError: (error, stackTrace) {
+        ILogger.error(
+            'Failed to load explore recommendations', error, stackTrace);
+        if (!mounted) return;
+        IToast.showTop(
+          error is PagedDataException && StringUtil.isNotEmpty(error.message)
+              ? error.message
+              : appLocalizations.loadFailed,
+        );
+      },
+    )..addListener(_handlePagingChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) panelScreenState?.refreshScrollControllers();
+    });
   }
+
+  Future<PagedDataPage<PostListItem, _ExploreCursor, void>> _loadExplorePage(
+    _ExploreCursor cursor,
+    bool refresh,
+  ) async {
+    final page = refresh ? 1 : cursor.page + 1;
+    final feed = refresh ? 0 : cursor.feed + 1;
+    final value = await RecommendApi.getExploreRecomend(
+      offset: refresh ? 0 : cursor.offset,
+      page: page,
+      feed: feed,
+    );
+    final code = (value['code'] as num?)?.toInt();
+    if (code == 4009) {
+      return PagedDataPage(items: const [], nextCursor: cursor, hasMore: false);
+    }
+    if (code != 0) {
+      throw PagedDataException(value['msg']?.toString() ?? '');
+    }
+
+    final data = value['data'];
+    if (data is! Map) throw const PagedDataException('');
+    
+    // ===== 核心：取出数据并拦截 =====
+    final rawItems = data['list'] is List ? List<dynamic>.from(data['list'] as List) : const <dynamic>[];
+    final filteredRawItems = PostFilterUtil.filterRawList(rawItems);
+    
+    final items = <PostListItem>[];
+    for (final rawItem in filteredRawItems) { 
+      try {
+        if (rawItem is Map) {
+          items.add(PostListItem.fromJson(Map<String, dynamic>.from(rawItem)));
+        }
+      } catch (error, stackTrace) {
+        ILogger.error('Skipped malformed explore card', error, stackTrace);
+      }
+    }
+    final nextOffset = (data['offset'] as num?)?.toInt() ?? cursor.offset;
+    return PagedDataPage(
+      items: items,
+      nextCursor: (offset: nextOffset, page: page, feed: feed),
+      hasMore: rawItems.isNotEmpty,
+    );
+  }
+
+  void _handlePagingChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<IndicatorResult> _onRefresh() => _pagingController.refresh();
+
+  Future<IndicatorResult> _onLoad() => _pagingController.load();
 
   @override
   void dispose() {
-    _minController.dispose();
-    _maxController.dispose();
-    _keywordController.dispose();
+    _pagingController
+      ..removeListener(_handlePagingChanged)
+      ..dispose();
+    _refreshController.dispose();
+    _refreshRotationController.dispose();
+    _nestedScrollController.dispose();
+    if (widget.scrollController == null) _scrollController.dispose();
     super.dispose();
   }
 
-  void _saveLikes() {
-    ContentSettings.minLikes = int.tryParse(_minController.text) ?? 0;
-    ContentSettings.maxLikes = int.tryParse(_maxController.text) ?? 999999999;
-    setState(() {});
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (ContentSettings.blockHomeFeed) {
+      return const WelcomeScreen();
+    }
+    
+    MediaQuery.sizeOf(context);
+    final design = context.design;
+    final hideAppBar = context.select<AppProvider, bool>(
+      (provider) => provider.shouldHideHomeAppBarOnScroll,
+    );
+    final showSearchAction = context.select<AppProvider, bool>(
+      (provider) => provider.shouldHideSearchNavigation,
+    );
+
+    // 把原本的 Scaffold 包裹一层 Stack 用于实现右上角浮窗
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: design.colors.page,
+          appBar: hideAppBar ? null : _buildHomeAppBar(showSearchAction),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final viewportWidth = constraints.maxWidth;
+              final centeredInset =
+                  ((viewportWidth - design.grid.maximumContentWidth) / 2)
+                      .clamp(0.0, double.infinity);
+              final pageInset = design.grid.denseFeedPagePaddingFor(viewportWidth);
+              final horizontalInset = centeredInset + pageInset;
+              final gutter = design.grid.gutterFor(viewportWidth);
+
+              if (!hideAppBar) {
+                return _buildFeed(
+                  design: design,
+                  horizontalInset: horizontalInset,
+                  gutter: gutter,
+                  scrollController: _scrollController,
+                  hideAppBar: false,
+                );
+              }
+
+              return ExtendedNestedScrollView(
+                controller: _nestedScrollController,
+                floatHeaderSlivers: true,
+                onlyOneScrollInBody: true,
+                headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                  SliverAppBar(
+                    key: const ValueKey('home-floating-app-bar'),
+                    floating: true,
+                    snap: true,
+                    pinned: false,
+                    toolbarHeight: 48,
+                    titleSpacing: 15,
+                    elevation: 0,
+                    scrolledUnderElevation: 0,
+                    surfaceTintColor: Colors.transparent,
+                    backgroundColor: design.colors.page,
+                    title: Text(
+                      appLocalizations.home,
+                      style: ChewieTheme.titleMedium.apply(fontWeightDelta: 2),
+                    ),
+                    actions: _buildActions(showSearchAction),
+                  ),
+                ],
+                body: Builder(
+                  builder: (context) {
+                    final innerController = PrimaryScrollController.of(context);
+                    if (!identical(_nestedInnerScrollController, innerController)) {
+                      _nestedInnerScrollController = innerController;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) panelScreenState?.refreshScrollControllers();
+                      });
+                    }
+                    return _buildFeed(
+                      design: design,
+                      horizontalInset: horizontalInset,
+                      gutter: gutter,
+                      scrollController: innerController,
+                      hideAppBar: true,
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+        
+        // ===== 核心：右上角悬浮过滤面板 =====
+        if (_showFilterOverlay)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + (hideAppBar ? 60 : kToolbarHeight + 10),
+            right: 16,
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(16),
+              color: Theme.of(context).colorScheme.surface,
+              child: Container(
+                width: MediaQuery.sizeOf(context).width * 0.85,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16, right: 8, top: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('作品过滤设置', style: Theme.of(context).textTheme.titleMedium),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: () => setState(() => _showFilterOverlay = false),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const FilterConsole(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 
-  void _addKeyword() {
-    final text = _keywordController.text.trim();
-    if (text.isNotEmpty && !_keywords.contains(text)) {
-      setState(() {
-        _keywords.add(text);
-        ContentSettings.keywords = _keywords; // 立即持久化保存
-        _keywordController.clear();
-      });
+  Widget _buildFeed({
+    required LoftifyDesignThemeData design,
+    required double horizontalInset,
+    required double gutter,
+    required ScrollController scrollController,
+    required bool hideAppBar,
+  }) {
+    return Stack(
+      children: [
+        EasyRefresh.builder(
+          refreshOnStart: true,
+          controller: _refreshController,
+          scrollController: scrollController,
+          header: hideAppBar
+              ? LottieCupertinoHeader(
+                  backgroundColor: Colors.transparent,
+                  indicator: LottieFiles.buildLoadingAnimation(40, false),
+                  safeArea: false,
+                  clamping: true,
+                  hapticFeedback: true,
+                  triggerOffset: 56,
+                  maxOverOffset: 84,
+                  radius: 20,
+                )
+              : null,
+          onRefresh: _onRefresh,
+          onLoad: _pagingController.noMore ? null : _onLoad,
+          childBuilder: (context, physics) => CustomScrollView(
+            controller: scrollController,
+            physics: physics,
+            cacheExtent: MediaQuery.sizeOf(context).height,
+            slivers: [
+              SliverPadding(
+                padding: EdgeInsets.only(
+                  top: 8,
+                  left: horizontalInset,
+                  right: horizontalInset,
+                ),
+                sliver: SliverWaterfallFlow(
+                  gridDelegate:
+                      SliverWaterfallFlowDelegateWithMaxCrossAxisExtent(
+                    mainAxisSpacing: gutter,
+                    crossAxisSpacing: gutter,
+                    maxCrossAxisExtent: design.grid.maximumDenseCardExtent,
+                  ),
+                  delegate: SliverChildBuilderDelegate(
+                    (BuildContext context, int index) {
+                      final item = _pagingController.items[index];
+                      return KeyedSubtree(
+                        key: ValueKey(
+                          'explore-${item.postData?.postView.id ?? item.itemId}',
+                        ),
+                        child:
+                            RecommendFlowItemBuilder.buildWaterfallFlowPostItem(
+                          context,
+                          item,
+                          showMoreButton: true,
+                        ),
+                      );
+                    },
+                    childCount: _pagingController.items.length,
+                    addAutomaticKeepAlives: false,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Positioned(
+          right: horizontalInset,
+          bottom: ResponsiveUtil.isLandscapeLayout() ? design.spacing.xl : 76,
+          child: ScrollToHide.multi(
+            controller: _scrollToHideController,
+            scrollControllers: hideAppBar
+                ? [_nestedScrollController, scrollController]
+                : [scrollController],
+            hideDirection: Axis.vertical,
+            child: _buildFloatingButtons(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  List<Widget> _buildActions(bool showSearchAction) {
+    return [
+      if (showSearchAction) _buildSearchAction(),
+      IconButton(
+        icon: Icon(
+          Icons.filter_alt_outlined,
+          color: _showFilterOverlay ? Theme.of(context).primaryColor : null,
+        ),
+        tooltip: '作品过滤',
+        onPressed: () => setState(() => _showFilterOverlay = !_showFilterOverlay),
+      ),
+      const SizedBox(width: 8),
+    ];
+  }
+
+  ResponsiveAppBar _buildHomeAppBar(bool showSearchAction) {
+    return ResponsiveAppBar(
+      title: appLocalizations.home,
+      titleLeftMargin: 15,
+      actions: _buildActions(showSearchAction),
+      landscapeActions: _buildActions(showSearchAction),
+    );
+  }
+
+  Widget _buildSearchAction() {
+    return ChewieIconButton(
+      icon: LoftifyIcons.search,
+      tooltip: appLocalizations.search,
+      onPressed: () => RouteUtil.pushPanelCupertinoRoute(
+        context,
+        const SearchScreen(showBack: true),
+      ),
+    );
+  }
+
+  Future<void> _refreshFromHomeNavigation() async {
+    final distanceFromTop = _homeDistanceFromTop;
+    final shouldRefreshAfterScroll =
+        distanceFromTop <= MediaQuery.sizeOf(context).height / 2;
+    if (distanceFromTop > 1) {
+      await _scrollHomeToTop();
+      if (!mounted || !shouldRefreshAfterScroll) {
+        return;
+      }
+    }
+    await _triggerRefresh();
+  }
+
+  double get _homeDistanceFromTop {
+    final feed = _feedScrollController;
+    final feedDistance = feed.hasClients && feed.offset > 0 ? feed.offset : 0.0;
+    final appBarDistance = appProvider.shouldHideHomeAppBarOnScroll &&
+            _nestedScrollController.hasClients &&
+            !identical(feed, _nestedScrollController)
+        ? (_nestedScrollController.offset > 0
+            ? _nestedScrollController.offset
+            : 0.0)
+        : 0.0;
+    return feedDistance + appBarDistance;
+  }
+
+  Future<void> _triggerRefresh() async {
+    final feed = _feedScrollController;
+    if (!mounted || !feed.hasClients || _pagingController.loading) return;
+    final nowTime = DateTime.now().millisecondsSinceEpoch;
+    if (lastRefreshTime != 0 && nowTime - lastRefreshTime <= krefreshTimeout) {
+      return;
+    }
+    lastRefreshTime = nowTime;
+    await _refreshController.callRefresh(
+      scrollController: feed,
+      jumpToEdge: !appProvider.shouldHideHomeAppBarOnScroll,
+    );
+  }
+
+  void scrollToTopAndRefresh() => unawaited(refresh());
+
+  Widget _buildFloatingButtons() {
+    return ResponsiveUtil.isLandscapeLayout()
+        ? Column(
+            children: [
+              ShadowIconButton(
+                boxShadow: const [],
+                icon: RotationTransition(
+                  turns: Tween(begin: 0.0, end: 1.0)
+                      .animate(_refreshRotationController),
+                  child: const ChewieIcon(LoftifyIcons.refresh),
+                ),
+                onTap: () async {
+                  refresh();
+                },
+              ),
+              const SizedBox(height: 10),
+              ShadowIconButton(
+                boxShadow: const [],
+                icon: const ChewieIcon(LoftifyIcons.scrollTop),
+                onTap: () {
+                  scrollToTop();
+                },
+              ),
+            ],
+          )
+        : emptyWidget;
+  }
+
+  ScrollController get _feedScrollController =>
+      appProvider.shouldHideHomeAppBarOnScroll
+          ? _nestedInnerScrollController ?? _nestedScrollController
+          : _scrollController;
+
+  Future<void> _scrollHomeToTop() async {
+    final feed = _feedScrollController;
+    if (feed.hasClients && feed.offset > 0) {
+      await feed.animateTo(0,
+          duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+    }
+    if (appProvider.shouldHideHomeAppBarOnScroll &&
+        _nestedScrollController.hasClients &&
+        _nestedScrollController.offset > 0) {
+      await _nestedScrollController.animateTo(0,
+          duration: const Duration(milliseconds: 220), curve: Curves.easeOut);
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const TabBar(
-            tabs: [
-              Tab(text: "热度过滤"),
-              Tab(text: "屏蔽词"),
-            ],
-          ),
-          SizedBox(
-            height: 300,
-            child: TabBarView(
-              children: [
-                _buildLikesTab(),
-                _buildKeywordsTab(),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  void scrollToTop() => unawaited(_scrollHomeToTop());
 
-  Widget _buildLikesTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(child: TextField(controller: _minController, decoration: const InputDecoration(labelText: '最低点赞', isDense: true), keyboardType: TextInputType.number, onChanged: (_) => _saveLikes())),
-              const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('~')),
-              Expanded(child: TextField(controller: _maxController, decoration: const InputDecoration(labelText: '最高点赞', isDense: true), keyboardType: TextInputType.number, onChanged: (_) => _saveLikes())),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text("快捷模板", style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _templateBtn("20~1000", 20, 1000),
-              _templateBtn("1000~5000", 1000, 5000),
-              _templateBtn("5000以上", 5000, 999999999),
-              _templateBtn("清除", 0, 999999999),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _templateBtn(String label, int min, int max) {
-    return ActionChip(
-      label: Text(label),
-      onPressed: () {
-        _minController.text = min.toString();
-        _maxController.text = max >= 999999999 ? '' : max.toString();
-        _saveLikes();
-      },
-    );
-  }
-
-  Widget _buildKeywordsTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("启用屏蔽词", style: TextStyle(fontWeight: FontWeight.bold)),
-              Switch(
-                value: ContentSettings.enableKeywords,
-                onChanged: (v) => setState(() => ContentSettings.enableKeywords = v),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _keywordController,
-                  decoration: const InputDecoration(hintText: '输入屏蔽词，如：abo', isDense: true),
-                  onSubmitted: (_) => _addKeyword(),
-                ),
-              ),
-              IconButton(icon: const Icon(Icons.add), onPressed: _addKeyword),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _keywords.map((k) {
-                return InputChip(
-                  label: Text(k),
-                  onDeleted: () {
-                    setState(() {
-                      _keywords.remove(k);
-                      ContentSettings.keywords = _keywords;
-                    });
-                  },
-                );
-              }).toList(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
-
-  void _goSearch() {
-    panelScreenState?.jumpToPage(SideBarChoice.Search.index);
+  void scrollToTopOrRefresh() {
+    unawaited(_refreshFromHomeNavigation());
   }
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search, size: 64, color: theme.colorScheme.primary),
-                  const SizedBox(height: 20),
-                  Text(
-                    '欢迎来到老福特',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '点击左侧搜索你感兴趣的标签',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// ===== 右下角的 UI 控制台 =====
-class UiConsole extends StatefulWidget {
-  const UiConsole({super.key});
-
-  @override
-  State<UiConsole> createState() => _UiConsoleState();
-}
-
-class _UiConsoleState extends State<UiConsole> {
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('模块屏蔽', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Flexible(
-              child: ListView(
-                shrinkWrap: true,
-                children: [
-                  _sw('主页算法流', ContentSettings.blockHomeFeed, (v) => ContentSettings.blockHomeFeed = v),
-                  _sw('隐藏「动态」Tab', ContentSettings.hideDynamicTab, (v) => ContentSettings.hideDynamicTab = v),
-                  _sw('大家都在搜', ContentSettings.blockEveryoneSearch, (v) => ContentSettings.blockEveryoneSearch = v),
-                  _sw('榜单', ContentSettings.blockRank, (v) => ContentSettings.blockRank = v),
-                  _sw('评论区', ContentSettings.blockComments, (v) => ContentSettings.blockComments = v),
-                  _sw('合集/粮单', ContentSettings.blockCollection, (v) => ContentSettings.blockCollection = v),
-                  _sw('相关标签', ContentSettings.blockRelatedTags, (v) => ContentSettings.blockRelatedTags = v),
-                  _sw('相关装扮', ContentSettings.blockRelatedDress, (v) => ContentSettings.blockRelatedDress = v),
-                  _sw('自动推荐', ContentSettings.blockAutoRecommend, (v) => ContentSettings.blockAutoRecommend = v),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  List<ScrollController> getScrollControllers() {
+    if (!appProvider.shouldHideHomeAppBarOnScroll) return [_scrollController];
+    final inner = _nestedInnerScrollController;
+    return [
+      _nestedScrollController,
+      if (inner != null && !identical(inner, _nestedScrollController)) inner,
+    ];
   }
 
-  Widget _sw(String title, bool value, ValueChanged<bool> onChanged) {
-    return SwitchListTile(
-      title: Text(title),
-      value: value,
-      onChanged: (v) {
-        onChanged(v);
-        setState(() {});
-      },
-      contentPadding: EdgeInsets.zero,
-      dense: true,
-    );
+  @override
+  FutureOr onTapBottomNavigation() {
+    return _refreshFromHomeNavigation();
   }
 }

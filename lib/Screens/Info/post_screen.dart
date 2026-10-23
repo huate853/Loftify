@@ -8,7 +8,9 @@ import 'package:loftify/Utils/hive_util.dart';
 import '../../Models/post_detail_response.dart';
 import '../../Utils/app_provider.dart';
 import '../../Utils/enums.dart';
+import '../../Utils/global_filter_overlay.dart';
 import '../../Utils/like_archive_util.dart';
+import '../../Utils/my_content_filter.dart';
 import '../../Widgets/Design/loftify_state_view.dart';
 import '../../Widgets/Item/item_builder.dart';
 import '../../Widgets/PostItem/common_info_post_item_builder.dart';
@@ -142,7 +144,8 @@ class _PostScreenState extends BaseDynamicState<PostScreen>
       }
       final response = value['response'] as Map;
       final rawPosts = response['posts'] as List;
-      final page = rawPosts
+      final filteredRawPosts = MyContentFilter.filterRawList(rawPosts);
+      final page = filteredRawPosts
           .whereType<Map>()
           .map((item) =>
               PostDetailData.fromJson(Map<String, dynamic>.from(item)))
@@ -154,9 +157,16 @@ class _PostScreenState extends BaseDynamicState<PostScreen>
         if (seen.add(item.post!.id)) posts.add(item);
       }
       final rawTopPost = response['topPost'];
-      final parsedTopPost = rawTopPost is Map
-          ? PostDetailData.fromJson(Map<String, dynamic>.from(rawTopPost))
-          : null;
+      PostDetailData? parsedTopPost;
+      if (rawTopPost is Map) {
+        final filteredTop =
+            MyContentFilter.filterRawList(<dynamic>[rawTopPost]);
+        if (filteredTop.isNotEmpty && filteredTop.first is Map) {
+          parsedTopPost = PostDetailData.fromJson(
+            Map<String, dynamic>.from(filteredTop.first as Map),
+          );
+        }
+      }
       final topPost = parsedTopPost?.post != null
           ? parsedTopPost
           : refresh
@@ -221,12 +231,18 @@ class _PostScreenState extends BaseDynamicState<PostScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      backgroundColor: widget.infoMode == InfoMode.me
-          ? ChewieTheme.getBackground(context)
-          : Colors.transparent,
-      appBar: widget.infoMode == InfoMode.me ? _buildAppBar() : null,
-      body: _buildBody(),
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        _refreshController.callRefresh();
+      },
+      child: Scaffold(
+        backgroundColor: widget.infoMode == InfoMode.me
+            ? ChewieTheme.getBackground(context)
+            : Colors.transparent,
+        appBar: widget.infoMode == InfoMode.me ? _buildAppBar() : null,
+        body: _buildBody(),
+      ),
     );
   }
 

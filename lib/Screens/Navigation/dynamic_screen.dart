@@ -27,6 +27,9 @@ import '../../Widgets/PostItem/grain_post_item_builder.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../Widgets/loftify_reaction_icon.dart';
 import '../../l10n/l10n.dart';
+// ===== 新增引入 =====
+import '../../Utils/my_content_filter.dart';
+// ====================
 import 'home_screen.dart';
 
 typedef _TimelineCursor = ({int show, int publish, int share});
@@ -476,8 +479,13 @@ class FollowTabState extends BaseDynamicState<FollowTab>
     );
     final data = _requireDynamicData(value);
     final rawItems = data['items'];
+    
+    // ===== 新增：关注流数据过滤 =====
+    final filteredRawItems = MyContentFilter.filterRawList(rawItems is List ? rawItems : []);
+    // ================================
+
     final posts = parsePagedDataItems<GrainPostItem>(
-      rawItems,
+      filteredRawItems,
       GrainPostItem.fromTimelineJson,
       onMalformed: (error, stackTrace) =>
           ILogger.error('Skipped malformed timeline post', error, stackTrace),

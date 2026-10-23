@@ -130,7 +130,10 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   }
 
   void _handleBlockUser(int blogId) {
-    _pagingController.items.removeWhere((item) => item.blogInfo?.blogId == blogId);
+    _pagingController.items.removeWhere((item) {
+      final itemBlogId = item.blogInfo?.blogId ?? item.postData?.postView.blogId;
+      return itemBlogId == blogId;
+    });
     if (mounted) {
       setState(() {});
       IToast.showTop("已拉黑");
@@ -349,8 +352,14 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   }
   void scrollToTop() => unawaited(_scrollHomeToTop());
   void scrollToTopOrRefresh() => unawaited(_refreshFromHomeNavigation());
+  
   @override
-  List<ScrollController> get ScrollControllers => [];
+  List<ScrollController> getScrollControllers() {
+    if (!appProvider.shouldHideHomeAppBarOnScroll) return [_scrollController];
+    final inner = _nestedInnerScrollController;
+    return [_nestedScrollController, if (inner != null && !identical(inner, _nestedScrollController)) inner];
+  }
+  
   @override
   FutureOr onTapBottomNavigation() => _refreshFromHomeNavigation();
 }

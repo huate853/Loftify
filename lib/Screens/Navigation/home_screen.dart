@@ -129,6 +129,14 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
     setState(() => _showFilterOverlay = !_showFilterOverlay);
   }
 
+  void _handleBlockUser(int blogId) {
+    _pagingController.items.removeWhere((item) => item.blogInfo?.blogId == blogId);
+    if (mounted) {
+      setState(() {});
+      IToast.showTop("已拉黑");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -195,6 +203,7 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
                 padding: EdgeInsets.only(
                   top: MediaQuery.of(context).padding.top + (hideAppBar ? 50 : kToolbarHeight),
                   right: 16,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
                 ),
                 child: GestureDetector(
                   onTap: () {},
@@ -250,10 +259,18 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
                 sliver: SliverWaterfallFlow(
                   gridDelegate: SliverWaterfallFlowDelegateWithMaxCrossAxisExtent(mainAxisSpacing: gutter, crossAxisSpacing: gutter, maxCrossAxisExtent: design.grid.maximumDenseCardExtent),
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => KeyedSubtree(
-                      key: ValueKey('explore-${_pagingController.items[index].postData?.postView.id ?? _pagingController.items[index].itemId}'),
-                      child: RecommendFlowItemBuilder.buildWaterfallFlowPostItem(context, _pagingController.items[index], showMoreButton: true),
-                    ),
+                    (context, index) {
+                      final item = _pagingController.items[index];
+                      return KeyedSubtree(
+                        key: ValueKey('explore-${item.postData?.postView.id ?? item.itemId}'),
+                        child: RecommendFlowItemBuilder.buildWaterfallFlowPostItem(
+                          context, 
+                          item, 
+                          showMoreButton: true,
+                          onBlockUser: _handleBlockUser,
+                        ),
+                      );
+                    },
                     childCount: _pagingController.items.length, addAutomaticKeepAlives: false,
                   ),
                 ),

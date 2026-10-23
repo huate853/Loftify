@@ -119,7 +119,7 @@ class RecommendFlowItemBuilder {
     PostListItem item, {
     String? excludeTag,
     bool showMoreButton = false,
-    final Function(int blogId)? onBlockUser, // 新增：拉黑回调
+    final Function(int blogId)? onBlockUser,
   }) {
     return WaterfallFlowPostItemWidget(
       key: ValueKey(item.postData?.postView.id ?? item.itemId),
@@ -128,7 +128,7 @@ class RecommendFlowItemBuilder {
         excludeTag: excludeTag,
         showMoreButton: showMoreButton,
       ),
-      onBlockUser: onBlockUser, // 传给卡片
+      onBlockUser: onBlockUser,
     );
   }
 

@@ -520,20 +520,21 @@ class WaterfallFlowPostItemWidgetState
                           GestureDetector(
                             onTap: () async {
                               HapticFeedback.mediumImpact();
-                              // === 真正的账号拉黑逻辑 ===
-                              try {
-                                final val = await UserApi.blockOrUnBlock(
-                                    isBlock: true, blogId: item.blogId);
-                                if (val['meta']['status'] == 200) {
+                              // ===== 修复：使用原版方式的 .then 链式调用，不用 try-catch 防止误报异常 =====
+                              UserApi.blockOrUnBlock(
+                                isBlock: true,
+                                blogId: item.blogId,
+                              ).then((val) {
+                                if (val != null && val['meta'] != null && val['meta']['status'] == 200) {
                                   widget.onBlockUser!(item.blogId);
                                 } else {
-                                  IToast.showTop(val['meta']['desc'] ??
-                                      val['meta']['msg'] ??
+                                  IToast.showTop(val?['meta']?['desc'] ??
+                                      val?['meta']?['msg'] ??
                                       "拉黑失败");
                                 }
-                              } catch (e) {
+                              }).catchError((e) {
                                 IToast.showTop("网络异常，拉黑失败");
-                              }
+                              });
                             },
                             child: Padding(
                               padding: const EdgeInsets.only(left: 4, right: 4),

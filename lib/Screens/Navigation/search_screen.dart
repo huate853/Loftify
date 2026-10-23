@@ -16,6 +16,7 @@ import 'package:loftify/Utils/enums.dart';
 import 'package:provider/provider.dart';
 
 import '../../Utils/content_settings.dart';
+import '../../Utils/global_filter_overlay.dart'; // 引入悬浮壳
 import '../../Utils/hive_util.dart';
 import '../../Utils/tab_state_util.dart';
 import '../../Utils/uri_util.dart';
@@ -80,7 +81,6 @@ class SearchScreenState extends BaseDynamicState<SearchScreen>
     fetchRankList();
     _searchController.addListener(() {
       final query = _searchController.text;
-      // Selection and composing changes must not repeat the same request.
       if (query == _suggestQuery) return;
       _suggestQuery = query;
       final request = ++_suggestRequest;
@@ -216,27 +216,32 @@ class SearchScreenState extends BaseDynamicState<SearchScreen>
         if (_sugList.isNotEmpty) _buildSuggestList(),
       ],
     );
-    return Scaffold(
-      backgroundColor: ChewieTheme.getBackground(context),
-      appBar: ResponsiveAppBar(
-        showBack: widget.showBack,
-        title: isWideLayout ? appLocalizations.search : '',
-        titleWidget: isWideLayout ? null : _buildSearchBar(),
-        titleLeftMargin: isWideLayout ? 16 : 0,
-        rightSpacing: 0,
+
+    // 包裹全局筛选组件
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      child: Scaffold(
+        backgroundColor: ChewieTheme.getBackground(context),
+        appBar: ResponsiveAppBar(
+          showBack: widget.showBack,
+          title: isWideLayout ? appLocalizations.search : '',
+          titleWidget: isWideLayout ? null : _buildSearchBar(),
+          titleLeftMargin: isWideLayout ? 16 : 0,
+          rightSpacing: 0,
+        ),
+        body: isWideLayout
+            ? LoftifyContentFrame(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSearchBar(),
+                    Expanded(child: content),
+                  ],
+                ),
+              )
+            : content,
+        extendBody: true,
       ),
-      body: isWideLayout
-          ? LoftifyContentFrame(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildSearchBar(),
-                  Expanded(child: content),
-                ],
-              ),
-            )
-          : content,
-      extendBody: true,
     );
   }
 
@@ -343,10 +348,12 @@ class SearchScreenState extends BaseDynamicState<SearchScreen>
     bool showSearchHistory = ChewieHiveUtil.getBool(
         HiveUtil.showSearchHistoryKey,
         defaultValue: false);
+    // 受操作台控制
     bool showSearchGuess = !ContentSettings.blockEveryoneSearch;
     bool showSearchConfig = ChewieHiveUtil.getBool(HiveUtil.showSearchConfigKey,
         defaultValue: true);
     bool showSearchRank = !ContentSettings.blockRank;
+    
     return CustomScrollView(
       controller: _scrollController,
       slivers: [

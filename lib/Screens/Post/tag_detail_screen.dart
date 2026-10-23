@@ -701,6 +701,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                 appLocalizations.weekRank,
                 appLocalizations.monthRank,
               ],
+              // ===== 修复：手动切换榜单时，清空所有时间参数 =====
               onSelected: (index) {
                 setState(() {
                   _currentHottestIndex = index;
@@ -711,11 +712,16 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                       2 => TagPostResultType.week,
                       _ => TagPostResultType.month,
                     },
+                    postYm: "", // 清空时间，以榜单为准
                   );
                 });
+                ContentSettings.tagSelectedYear = 0;
+                ContentSettings.tagSelectedMonth = 0;
+                
                 _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
                 _refreshTabData(2);
               },
+              // ==================================================
               onFilter: () {
                 BottomSheetBuilder.showBottomSheet(
                   context,

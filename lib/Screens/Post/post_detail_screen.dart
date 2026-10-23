@@ -880,7 +880,8 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
 
           if (append == false) _recommendPosts.clear();
           final newPosts = tmp
-              .map((e) => PostListItem.fromJson(e))
+              .whereType<Map>()
+              .map((e) => PostListItem.fromJson(Map<String, dynamic>.from(e)))
               .where(
                 (post) => !_recommendPosts.any(
                   (current) => current.itemId == post.itemId,
@@ -2911,6 +2912,13 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
                 context,
                 _recommendPosts[index],
                 showMoreButton: true,
+                onBlockUser: (blogId) async {
+                  _recommendPosts.removeWhere((item) =>
+                      (item.blogInfo?.blogId ??
+                          item.postData?.postView.blogId) ==
+                      blogId);
+                  if (mounted) setState(() {});
+                },
               ),
             );
           },

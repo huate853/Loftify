@@ -29,6 +29,11 @@ import '../../Widgets/PostItem/recommend_flow_item_builder.dart';
 import '../../Widgets/Tag/tag_detail_components.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../l10n/l10n.dart';
+// ===== 新增引入 =====
+import '../../Utils/content_settings.dart';
+import '../../Utils/my_content_filter.dart';
+import '../../Api/user_api.dart';
+// ====================
 
 class TagDetailScreen extends StatefulWidget {
   const TagDetailScreen({super.key, required this.tag});
@@ -212,11 +217,6 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   }
 
   Future<bool> _refreshTabData(int index) async {
-    // Do not start an incoming page's refresh while it is still mostly
-    // off-screen. EasyRefresh can finish a fast request before the TabBarView
-    // transition settles, which makes the required refresh animation appear
-    // to be missing. Distant pages also need more than a handful of frames to
-    // attach their nested scroll position.
     for (var attempt = 0; attempt < 60; attempt++) {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return false;
@@ -910,6 +910,16 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
     super.dispose();
   }
 
+  // ===== 拉黑回调 =====
+  void _handleBlockUser(int blogId) {
+    _recommendList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
+    if (mounted) {
+      setState(() {});
+      IToast.showTop("已拉黑");
+    }
+  }
+  // ====================
+
   Future<IndicatorResult> _fetchRecommendResult({bool refresh = false}) async {
     if (_recommendResultLoading || (!refresh && _recommendNoMore)) {
       return IndicatorResult.none;
@@ -929,9 +939,13 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
           if (value['data'] != null) {
             _recommendResultOffset = value['data']['offset'];
             if (refresh) _recommendList.clear();
-            newPosts = (value['data']['list'] as List)
-                .map((e) => PostListItem.fromJson(e))
-                .toList();
+            
+            // ===== 数据过滤 =====
+            final rawList = value['data']['list'] as List;
+            final filteredRawList = MyContentFilter.filterRawList(rawList);
+            newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
+            // ====================
+
             newPosts.removeWhere((e) =>
                 _recommendList.any((element) => element.itemId == e.itemId));
             _recommendList.addAll(newPosts);
@@ -991,6 +1005,7 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
                   context,
                   _recommendList[index],
                   excludeTag: widget.tag,
+                  onBlockUser: _handleBlockUser, // 传入拉黑
                 );
               },
               itemCount: _recommendList.length,
@@ -1066,6 +1081,16 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     super.dispose();
   }
 
+  // ===== 拉黑回调 =====
+  void _handleBlockUser(int blogId) {
+    _hottestList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
+    if (mounted) {
+      setState(() {});
+      IToast.showTop("已拉黑");
+    }
+  }
+  // ====================
+
   Future<IndicatorResult> _fetchHottestResult({bool refresh = false}) async {
     if (_hottestResultLoading || (!refresh && _hottestNoMore)) {
       return IndicatorResult.none;
@@ -1084,9 +1109,13 @@ class HottestTabState extends BaseDynamicState<HottestTab>
           if (value['data'] != null) {
             _hottestResultOffset = value['data']['offset'];
             if (refresh) _hottestList.clear();
-            newPosts = (value['data']['list'] as List)
-                .map((e) => PostListItem.fromJson(e))
-                .toList();
+            
+            // ===== 数据过滤 =====
+            final rawList = value['data']['list'] as List;
+            final filteredRawList = MyContentFilter.filterRawList(rawList);
+            newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
+            // ====================
+
             newPosts.removeWhere((e) =>
                 _hottestList.any((element) => element.itemId == e.itemId));
             _hottestList.addAll(newPosts);
@@ -1146,6 +1175,7 @@ class HottestTabState extends BaseDynamicState<HottestTab>
                   context,
                   _hottestList[index],
                   excludeTag: widget.tag,
+                  onBlockUser: _handleBlockUser, // 传入拉黑
                 );
               },
               itemCount: _hottestList.length,
@@ -1220,6 +1250,16 @@ class NewestTabState extends BaseDynamicState<NewestTab>
     super.dispose();
   }
 
+  // ===== 拉黑回调 =====
+  void _handleBlockUser(int blogId) {
+    _newestList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
+    if (mounted) {
+      setState(() {});
+      IToast.showTop("已拉黑");
+    }
+  }
+  // ====================
+
   Future<IndicatorResult> _fetchNewestResult({bool refresh = false}) async {
     if (_newestResultLoading || (!refresh && _newestNoMore)) {
       return IndicatorResult.none;
@@ -1239,9 +1279,13 @@ class NewestTabState extends BaseDynamicState<NewestTab>
           if (value['data'] != null) {
             _newestResultOffset = value['data']['offset'];
             if (refresh) _newestList.clear();
-            newPosts = (value['data']['list'] as List)
-                .map((e) => PostListItem.fromJson(e))
-                .toList();
+            
+            // ===== 数据过滤 =====
+            final rawList = value['data']['list'] as List;
+            final filteredRawList = MyContentFilter.filterRawList(rawList);
+            newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
+            // ====================
+
             newPosts.removeWhere((e) =>
                 _newestList.any((element) => element.itemId == e.itemId));
             _newestList.addAll(newPosts);
@@ -1302,6 +1346,7 @@ class NewestTabState extends BaseDynamicState<NewestTab>
                   context,
                   _newestList[index],
                   excludeTag: widget.tag,
+                  onBlockUser: _handleBlockUser, // 传入拉黑
                 );
               },
               itemCount: _newestList.length,

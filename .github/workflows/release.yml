@@ -43,10 +43,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Add Android keystore
+      # Add Android keystore (skips gracefully if secret not configured)
       - name: Setup Android keystore
-        if: matrix.target == 'Android' && secrets.ENCODED_KEYSTORE != ''
+        if: matrix.target == 'Android'
+        continue-on-error: true
         run: |
+          if [ -z "${{ secrets.ENCODED_KEYSTORE }}" ]; then
+            echo "No ENCODED_KEYSTORE secret configured, skipping keystore setup."
+            exit 0
+          fi
           echo "${{ secrets.ENCODED_KEYSTORE }}" | base64 -di > android/app/cloudchewie.jks
           echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties
 

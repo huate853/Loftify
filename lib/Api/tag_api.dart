@@ -293,9 +293,11 @@ class GetTagPostListParams {
     );
   }
 
+  // 检查点：已增加 postYm 的修改支持
   GetTagPostListParams copyWith({
     int? offset,
     TagPostResultType? tagPostResultType,
+    String? postYm,
   }) {
     return GetTagPostListParams(
       tag: tag,
@@ -305,7 +307,7 @@ class GetTagPostListParams {
       tagRangeType: tagRangeType,
       protectedFlag: protectedFlag,
       postTypes: postTypes,
-      postYm: postYm,
+      postYm: postYm ?? this.postYm, 
     );
   }
 }

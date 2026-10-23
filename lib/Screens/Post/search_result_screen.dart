@@ -257,6 +257,29 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
   }
   // ==============================
 
+  // ===== 拉黑并移除逻辑 =====
+  void _handleBlockUser(int blogId) {
+    _allPagingController.items.removeWhere((item) {
+      final id = item.blogInfo?.blogId ?? item.postData?.postView.blogId;
+      return id == blogId;
+    });
+    _postPagingController.items.removeWhere((item) {
+      try {
+        // 动态获取 blogId，兼容 SearchPost
+        final dynamic dynamicItem = item;
+        return dynamicItem.blogInfo?.blogId == blogId ||
+            dynamicItem.blogId == blogId;
+      } catch (_) {
+        return false;
+      }
+    });
+    if (mounted) {
+      setState(() {});
+      IToast.showTop("健康值+1");
+    }
+  }
+  // ==============================
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -897,6 +920,7 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
                                 .buildWaterfallFlowPostItem(
                               context,
                               _allResult!.posts[index],
+                              onBlockUser: _handleBlockUser, // 传入拉黑回调
                             ),
                           );
                         },
@@ -1108,6 +1132,7 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
                           SearchPostFlowItemBuilder.buildWaterfallFlowPostItem(
                         context,
                         _postList[index],
+                        onBlockUser: _handleBlockUser, // 传入拉黑回调
                       ),
                     );
                   },

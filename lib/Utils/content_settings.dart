@@ -16,7 +16,6 @@ class ContentSettings {
   static bool get showFloatingSearch => _getBool('show_floating_search');
   static set showFloatingSearch(bool v) => _setBool('show_floating_search', v);
 
-  // 这个就是导致报错的元凶，必须在文件里！
   static bool get hideDynamicTab => _getBool('hide_dynamic_tab');
   static set hideDynamicTab(bool v) => _setBool('hide_dynamic_tab', v);
 
@@ -64,4 +63,12 @@ class ContentSettings {
   static set keywords(List<String> list) {
     ChewieHiveUtil.put('${_p}keywords', list.join(','));
   }
+
+  // ==== Tag 年月筛选 ====
+  // 0 表示未选择，仅 Tag 页生效
+  static int get tagSelectedYear => _getInt('tag_year', 0);
+  static set tagSelectedYear(int v) => _setInt('tag_year', v);
+
+  static int get tagSelectedMonth => _getInt('tag_month', 0);
+  static set tagSelectedMonth(int v) => _setInt('tag_month', v);
 }

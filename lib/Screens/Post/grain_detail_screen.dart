@@ -22,6 +22,10 @@ import '../../Widgets/PostDetail/detail_bottom_bar.dart';
 import '../../Widgets/Design/loftify_media_overlays.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../l10n/l10n.dart';
+// ===== 新增引入 =====
+import '../../Utils/content_settings.dart';
+import '../../Utils/my_content_filter.dart';
+// ====================
 
 class GrainDetailScreen extends StatefulWidget {
   const GrainDetailScreen({
@@ -94,7 +98,14 @@ class GrainDetailScreenState extends BaseDynamicState<GrainDetailScreen>
           IToast.showTop(value['msg']);
           return IndicatorResult.fail;
         } else {
-          GrainDetailData t = GrainDetailData.fromJson(value['data']);
+          // ===== 新增：在解析前直接过滤原始 JSON 数据 =====
+          dynamic rawData = value['data'];
+          if (rawData != null && rawData['posts'] is List) {
+            rawData['posts'] = MyContentFilter.filterRawList(rawData['posts']);
+          }
+          // ==========================================
+
+          GrainDetailData t = GrainDetailData.fromJson(rawData);
           if (grainDetailData == null || refresh) {
             grainDetailData = t;
             subscribed = grainDetailData!.followStatus;
@@ -127,8 +138,11 @@ class GrainDetailScreenState extends BaseDynamicState<GrainDetailScreen>
             ));
           }
           if (mounted) setState(() {});
+          
+          // 如果服务端返回的原始 posts 为空，则说明到底了
           noMore = posts.length >= grainDetailData!.grainInfo.postCount ||
-              newPosts.isEmpty;
+              rawData['posts'] == null ||
+              (rawData['posts'] as List).isEmpty;
           _synchronizePostSequence();
           if (noMore && !refresh) {
             return IndicatorResult.noMore;

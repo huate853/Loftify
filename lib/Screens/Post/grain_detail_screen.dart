@@ -22,10 +22,10 @@ import '../../Widgets/PostDetail/detail_bottom_bar.dart';
 import '../../Widgets/Design/loftify_media_overlays.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../l10n/l10n.dart';
-// ===== 新增引入 =====
-import '../../Utils/content_settings.dart';
+// ===== 引入全局筛选与过滤 =====
 import '../../Utils/my_content_filter.dart';
-// ====================
+import '../../Utils/global_filter_overlay.dart';
+// ============================
 
 class GrainDetailScreen extends StatefulWidget {
   const GrainDetailScreen({
@@ -98,7 +98,7 @@ class GrainDetailScreenState extends BaseDynamicState<GrainDetailScreen>
           IToast.showTop(value['msg']);
           return IndicatorResult.fail;
         } else {
-          // ===== 新增：在解析前直接过滤原始 JSON 数据 =====
+          // ===== 核心：在解析前直接过滤原始 JSON 数据 =====
           dynamic rawData = value['data'];
           if (rawData != null && rawData['posts'] is List) {
             rawData['posts'] = MyContentFilter.filterRawList(rawData['posts']);
@@ -191,18 +191,26 @@ class GrainDetailScreenState extends BaseDynamicState<GrainDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ChewieTheme.getBackground(context),
-      appBar: ResponsiveUtil.isLandscapeLayout()
-          ? ResponsiveAppBar(
-              showBack: true, title: appLocalizations.grainDetail)
-          : null,
-      bottomNavigationBar: grainDetailData != null ? _buildFooter() : null,
-      body: grainDetailData != null
-          ? _buildScrollableBody()
-          : LoadingWidget(
-              background: Colors.transparent,
-            ),
+    // 套上全局筛选壳子
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        // 筛选条件改变后，自动刷新当前粮单
+        _fetchData(refresh: true);
+      },
+      child: Scaffold(
+        backgroundColor: ChewieTheme.getBackground(context),
+        appBar: ResponsiveUtil.isLandscapeLayout()
+            ? ResponsiveAppBar(
+                showBack: true, title: appLocalizations.grainDetail)
+            : null,
+        bottomNavigationBar: grainDetailData != null ? _buildFooter() : null,
+        body: grainDetailData != null
+            ? _buildScrollableBody()
+            : LoadingWidget(
+                background: Colors.transparent,
+              ),
+      ),
     );
   }
 

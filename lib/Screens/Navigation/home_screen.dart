@@ -17,6 +17,7 @@ import '../../l10n/l10n.dart';
 import 'search_screen.dart';
 import '../../Utils/content_settings.dart';
 import '../../Utils/my_content_filter.dart';
+import '../../Utils/global_filter_overlay.dart'; // 引入全站筛选壳子
 import 'welcome_screen.dart';
 
 int krefreshTimeout = 300;
@@ -43,11 +44,6 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   late final PagedDataController<PostListItem, int, _ExploreCursor, void> _pagingController;
   late AnimationController _refreshRotationController;
   final ScrollToHideController _scrollToHideController = ScrollToHideController();
-  
-  bool _showFilterOverlay = false;
-  int _tempMin = 0;
-  int _tempMax = 999999999;
-  bool _tempEnableKw = false;
 
   Future<void> refresh() async {
     await _scrollHomeToTop();
@@ -84,6 +80,7 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
     if (data is! Map) throw const PagedDataException('');
     
     final rawItems = data['list'] is List ? List<dynamic>.from(data['list'] as List) : const <dynamic>[];
+    // ===== 底层过滤 =====
     final filteredRawItems = MyContentFilter.filterRawList(rawItems);
     
     final items = <PostListItem>[];
@@ -116,24 +113,9 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
     super.dispose();
   }
 
-  void _toggleFilterOverlay() {
-    if (!_showFilterOverlay) {
-      _tempMin = ContentSettings.minLikes;
-      _tempMax = ContentSettings.maxLikes;
-      _tempEnableKw = ContentSettings.enableKeywords;
-    } else {
-      if (_tempMin != ContentSettings.minLikes || _tempMax != ContentSettings.maxLikes || _tempEnableKw != ContentSettings.enableKeywords) {
-        _onRefresh();
-      }
-    }
-    setState(() => _showFilterOverlay = !_showFilterOverlay);
-  }
-
+  // 拉黑回调
   void _handleBlockUser(int blogId) {
-    _pagingController.items.removeWhere((item) {
-      final itemBlogId = item.blogInfo?.blogId ?? item.postData?.postView.blogId;
-      return itemBlogId == blogId;
-    });
+    _pagingController.items.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
     if (mounted) {
       setState(() {});
       IToast.showTop("已拉黑");
@@ -143,107 +125,67 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (ContentSettings.blockHomeFeed) return const WelcomeScreen();
+    if (ContentSettings.blockHomeFeed) {
+      return const GlobalFilterWrapper(
+        isTagPage: false,
+        child: WelcomeScreen(),
+      );
+    }
     
     MediaQuery.sizeOf(context);
     final design = context.design;
     final hideAppBar = context.select<AppProvider, bool>((provider) => provider.shouldHideHomeAppBarOnScroll);
     final showSearchAction = context.select<AppProvider, bool>((provider) => provider.shouldHideSearchNavigation);
 
-    return Stack(
-      children: [
-        Scaffold(
-          backgroundColor: design.colors.page,
-          appBar: hideAppBar ? null : _buildHomeAppBar(showSearchAction),
-          body: LayoutBuilder(
-            builder: (context, constraints) {
-              final viewportWidth = constraints.maxWidth;
-              final centeredInset = ((viewportWidth - design.grid.maximumContentWidth) / 2).clamp(0.0, double.infinity);
-              final pageInset = design.grid.denseFeedPagePaddingFor(viewportWidth);
-              final horizontalInset = centeredInset + pageInset;
-              final gutter = design.grid.gutterFor(viewportWidth);
+    // 整个首页套上带右上角筛选的壳子
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        // 如果筛选条件变了，自动刷新首页
+        _onRefresh();
+      },
+      child: Scaffold(
+        backgroundColor: design.colors.page,
+        appBar: hideAppBar ? null : _buildHomeAppBar(showSearchAction),
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final viewportWidth = constraints.maxWidth;
+            final centeredInset = ((viewportWidth - design.grid.maximumContentWidth) / 2).clamp(0.0, double.infinity);
+            final pageInset = design.grid.denseFeedPagePaddingFor(viewportWidth);
+            final horizontalInset = centeredInset + pageInset;
+            final gutter = design.grid.gutterFor(viewportWidth);
 
-              if (!hideAppBar) {
-                return _buildFeed(design: design, horizontalInset: horizontalInset, gutter: gutter, scrollController: _scrollController, hideAppBar: false);
-              }
+            if (!hideAppBar) {
+              return _buildFeed(design: design, horizontalInset: horizontalInset, gutter: gutter, scrollController: _scrollController, hideAppBar: false);
+            }
 
-              return ExtendedNestedScrollView(
-                controller: _nestedScrollController,
-                floatHeaderSlivers: true,
-                onlyOneScrollInBody: true,
-                headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                  SliverAppBar(
-                    key: const ValueKey('home-floating-app-bar'),
-                    floating: true, snap: true, pinned: false, toolbarHeight: 48, titleSpacing: 15,
-                    elevation: 0, scrolledUnderElevation: 0, surfaceTintColor: Colors.transparent, backgroundColor: design.colors.page,
-                    title: Text(appLocalizations.home, style: ChewieTheme.titleMedium.apply(fontWeightDelta: 2)),
-                    actions: _buildActions(showSearchAction),
-                  ),
-                ],
-                body: Builder(
-                  builder: (context) {
-                    final innerController = PrimaryScrollController.of(context);
-                    if (!identical(_nestedInnerScrollController, innerController)) {
-                      _nestedInnerScrollController = innerController;
-                      WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) panelScreenState?.refreshScrollControllers(); });
-                    }
-                    return _buildFeed(design: design, horizontalInset: horizontalInset, gutter: gutter, scrollController: innerController, hideAppBar: true);
-                  },
+            return ExtendedNestedScrollView(
+              controller: _nestedScrollController,
+              floatHeaderSlivers: true,
+              onlyOneScrollInBody: true,
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverAppBar(
+                  key: const ValueKey('home-floating-app-bar'),
+                  floating: true, snap: true, pinned: false, toolbarHeight: 48, titleSpacing: 15,
+                  elevation: 0, scrolledUnderElevation: 0, surfaceTintColor: Colors.transparent, backgroundColor: design.colors.page,
+                  title: Text(appLocalizations.home, style: ChewieTheme.titleMedium.apply(fontWeightDelta: 2)),
+                  actions: _buildActions(showSearchAction),
                 ),
-              );
-            },
-          ),
-        ),
-        
-        if (_showFilterOverlay)
-          Positioned.fill(
-            child: GestureDetector(
-              onTap: _toggleFilterOverlay,
-              behavior: HitTestBehavior.translucent,
-              child: Container(
-                color: Colors.black.withOpacity(0.1),
-                alignment: Alignment.topRight,
-                padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + (hideAppBar ? 50 : kToolbarHeight),
-                  right: 16,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-                ),
-                child: GestureDetector(
-                  onTap: () {},
-                  child: Material(
-                    elevation: 8,
-                    borderRadius: BorderRadius.circular(16),
-                    color: Theme.of(context).colorScheme.surface,
-                    child: Container(
-                      width: MediaQuery.sizeOf(context).width * 0.85,
-                      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.6),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Theme.of(context).dividerColor),
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(left: 16, right: 8, top: 8),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('作品过滤', style: Theme.of(context).textTheme.titleMedium),
-                                IconButton(icon: const Icon(Icons.close, size: 20), onPressed: _toggleFilterOverlay),
-                              ],
-                            ),
-                          ),
-                          const Flexible(child: FilterConsole()),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+              ],
+              body: Builder(
+                builder: (context) {
+                  final innerController = PrimaryScrollController.of(context);
+                  if (!identical(_nestedInnerScrollController, innerController)) {
+                    _nestedInnerScrollController = innerController;
+                    WidgetsBinding.instance.addPostFrameCallback((_) { if (mounted) panelScreenState?.refreshScrollControllers(); });
+                  }
+                  return _buildFeed(design: design, horizontalInset: horizontalInset, gutter: gutter, scrollController: innerController, hideAppBar: true);
+                },
               ),
-            ),
-          ),
-      ],
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -270,7 +212,7 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
                           context, 
                           item, 
                           showMoreButton: true,
-                          onBlockUser: _handleBlockUser,
+                          onBlockUser: _handleBlockUser, // 传入拉黑回调
                         ),
                       );
                     },
@@ -281,6 +223,7 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
             ],
           ),
         ),
+        // 这里保留原来的右下角悬浮按钮（但因为你之前已经有了 panel_screen 的全局悬浮，这里其实可以删掉，不过为了不报错我先留着，不影响 UI）
         Positioned(
           right: horizontalInset,
           bottom: ResponsiveUtil.isLandscapeLayout() ? design.spacing.xl : 76,
@@ -294,13 +237,9 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   }
 
   List<Widget> _buildActions(bool showSearchAction) {
+    // 删除了原有的右上角漏斗图标，因为现在用了全站通用的 GlobalFilterWrapper
     return [
       if (showSearchAction) _buildSearchAction(),
-      IconButton(
-        icon: Icon(Icons.filter_alt_outlined, color: _showFilterOverlay ? Theme.of(context).primaryColor : null),
-        tooltip: '作品过滤',
-        onPressed: _toggleFilterOverlay,
-      ),
       const SizedBox(width: 8),
     ];
   }
@@ -352,14 +291,12 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   }
   void scrollToTop() => unawaited(_scrollHomeToTop());
   void scrollToTopOrRefresh() => unawaited(_refreshFromHomeNavigation());
-  
   @override
   List<ScrollController> getScrollControllers() {
     if (!appProvider.shouldHideHomeAppBarOnScroll) return [_scrollController];
     final inner = _nestedInnerScrollController;
     return [_nestedScrollController, if (inner != null && !identical(inner, _nestedScrollController)) inner];
   }
-  
   @override
   FutureOr onTapBottomNavigation() => _refreshFromHomeNavigation();
 }

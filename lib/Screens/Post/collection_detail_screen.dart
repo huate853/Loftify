@@ -24,10 +24,10 @@ import '../../Widgets/PostDetail/detail_bottom_bar.dart';
 import '../../Widgets/Design/loftify_media_overlays.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../l10n/l10n.dart';
-// ===== 新增引入 =====
-import '../../Utils/content_settings.dart';
+// ===== 引入全局筛选与过滤 =====
 import '../../Utils/my_content_filter.dart';
-// ====================
+import '../../Utils/global_filter_overlay.dart';
+// ============================
 
 class CollectionDetailScreen extends StatefulWidget {
   const CollectionDetailScreen({
@@ -111,9 +111,9 @@ class CollectionDetailScreenState
           
           List<dynamic> t = value['response']['items'];
           
-          // ===== 新增：数据过滤（点赞、屏蔽词） =====
+          // ===== 核心：底层数据拦截 =====
           t = MyContentFilter.filterRawList(t);
-          // =========================================
+          // ==============================
           
           List<PostDetailData> newPosts = [];
           for (var e in t) {
@@ -148,8 +148,7 @@ class CollectionDetailScreenState
           }
           if (mounted) setState(() {});
           
-          // 注意：postCollection!.postCount 是服务器返回的原始总数
-          // 即使被过滤，只要服务器返回了，就说明还有下一页，过滤后的 newPosts.isEmpty 不会影响继续加载
+          // 如果服务器返回的原始列表为空，说明没有更多了
           noMore =
               posts.length >= postCollection!.postCount || value['response']['items'].isEmpty;
           if (noMore && !refresh) {
@@ -194,17 +193,25 @@ class CollectionDetailScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ChewieTheme.getBackground(context),
-      appBar: ResponsiveUtil.isLandscapeLayout()
-          ? ResponsiveAppBar(
-              showBack: true, title: appLocalizations.collectionDetail)
-          : null,
-      bottomNavigationBar:
-          blogInfo != null && postCollection != null ? _buildFooter() : null,
-      body: blogInfo != null && postCollection != null
-          ? _buildScrollableBody()
-          : const LoadingWidget(background: Colors.transparent),
+    // 套上全局筛选壳子
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        // 筛选条件改变后，自动刷新当前合集
+        _fetchData(refresh: true);
+      },
+      child: Scaffold(
+        backgroundColor: ChewieTheme.getBackground(context),
+        appBar: ResponsiveUtil.isLandscapeLayout()
+            ? ResponsiveAppBar(
+                showBack: true, title: appLocalizations.collectionDetail)
+            : null,
+        bottomNavigationBar:
+            blogInfo != null && postCollection != null ? _buildFooter() : null,
+        body: blogInfo != null && postCollection != null
+            ? _buildScrollableBody()
+            : const LoadingWidget(background: Colors.transparent),
+      ),
     );
   }
 

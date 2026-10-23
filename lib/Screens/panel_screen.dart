@@ -24,6 +24,7 @@ import 'package:loftify/Screens/Navigation/mine_screen.dart';
 import 'package:provider/provider.dart';
 
 import '../Utils/app_provider.dart';
+import '../Utils/content_settings.dart';
 import '../Utils/enums.dart';
 import '../Utils/lottie_files.dart';
 import '../Widgets/Navigation/loftify_glass_navigation_bar.dart';
@@ -31,6 +32,7 @@ import '../Widgets/loftify_icons.dart';
 import '../l10n/l10n.dart';
 import 'Navigation/home_screen.dart';
 import 'Navigation/search_screen.dart';
+import 'Navigation/welcome_screen.dart';
 
 class PanelBackScope extends StatelessWidget {
   const PanelBackScope({
@@ -56,18 +58,24 @@ class PanelBackScope extends StatelessWidget {
   }
 }
 
-List<SideBarChoice> visiblePanelChoices({required bool hideSearch}) => [
+List<SideBarChoice> visiblePanelChoices({
+  required bool hideSearch,
+  required bool hideDynamic,
+}) =>
+    [
       SideBarChoice.Home,
       if (!hideSearch) SideBarChoice.Search,
-      SideBarChoice.Dynamic,
+      if (!hideDynamic) SideBarChoice.Dynamic,
       SideBarChoice.Mine,
     ];
 
 int visiblePanelPageIndex(
   SideBarChoice choice, {
   required bool hideSearch,
+  required bool hideDynamic,
 }) =>
-    visiblePanelChoices(hideSearch: hideSearch).indexOf(choice);
+    visiblePanelChoices(hideSearch: hideSearch, hideDynamic: hideDynamic)
+        .indexOf(choice);
 
 class PanelScreen extends StatefulWidget {
   const PanelScreen({
@@ -91,20 +99,27 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
   bool unlogin = false;
   int _currentIndex = 0;
   bool _searchNavigationHidden = false;
-  List<SideBarChoice> get _visibleChoices =>
-      visiblePanelChoices(hideSearch: appProvider.shouldHideSearchNavigation);
+  bool _dynamicTabHidden = false;
+
+  List<SideBarChoice> get _visibleChoices => visiblePanelChoices(
+        hideSearch: appProvider.shouldHideSearchNavigation,
+        hideDynamic: ContentSettings.hideDynamicTab,
+      );
 
   int _visibleIndexFor(int logicalIndex) {
     final index = visiblePanelPageIndex(
       SideBarChoice.fromInt(logicalIndex),
       hideSearch: appProvider.shouldHideSearchNavigation,
+      hideDynamic: ContentSettings.hideDynamicTab,
     );
     return index < 0 ? 0 : index;
   }
 
   List<Widget> _buildVisiblePages() => _visibleChoices.map((choice) {
         return switch (choice) {
-          SideBarChoice.Home => HomeScreen(key: _keyList[choice.index]),
+          SideBarChoice.Home => ContentSettings.blockHomeFeed
+              ? WelcomeScreen(key: _keyList[choice.index])
+              : HomeScreen(key: _keyList[choice.index]),
           SideBarChoice.Search => SearchScreen(key: _keyList[choice.index]),
           SideBarChoice.Dynamic => DynamicScreen(key: _keyList[choice.index]),
           SideBarChoice.Mine => MineScreen(key: _keyList[choice.index]),
@@ -122,6 +137,7 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
 
   void _configurePages() {
     _searchNavigationHidden = appProvider.shouldHideSearchNavigation;
+    _dynamicTabHidden = ContentSettings.hideDynamicTab;
     _keyList = [
       homeScreenKey,
       searchScreenKey,
@@ -198,8 +214,6 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
         : CustomCupertinoPageRoute(builder: (context) => page);
     _nestedRoutes.add(route);
     unawaited(navigator.push(route));
-    // Navigator.push completes when pop begins, not when the reverse transition
-    // has left the overlay. Keep the panel visible until the route is removed.
     unawaited(route.completed.whenComplete(() {
       _nestedRoutes.remove(route);
       _nestedPopInProgress = false;
@@ -221,14 +235,10 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
     final navigator = panelNavigatorState;
     if (navigator == null || !navigator.canPop()) return;
     final route = _nestedRoutes.isEmpty ? null : _nestedRoutes.last;
-    // maybePop consults the active route's PopScope. A direct pop bypasses it
-    // and would remove a full-screen video instead of first restoring portrait.
     final willRemoveRoute = route?.popDisposition == RoutePopDisposition.pop &&
         !(route?.willHandlePopInternally ?? false);
     if (willRemoveRoute) _nestedPopInProgress = true;
     unawaited(navigator.maybePop().whenComplete(() {
-      // PopScope and LocalHistoryEntry may handle back without removing the
-      // route. Only a real reverse transition stays locked until completed.
       if (route?.animation?.status != AnimationStatus.reverse) {
         _nestedPopInProgress = false;
       }
@@ -260,8 +270,13 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
   void updateSearchNavigationVisibility() {
     if (_keyList.length != SideBarChoice.values.length) return;
     _searchNavigationHidden = appProvider.shouldHideSearchNavigation;
+    _dynamicTabHidden = ContentSettings.hideDynamicTab;
     if (appProvider.shouldHideSearchNavigation &&
         _currentIndex == SideBarChoice.Search.index) {
+      _currentIndex = SideBarChoice.Home.index;
+    }
+    if (ContentSettings.hideDynamicTab &&
+        _currentIndex == SideBarChoice.Dynamic.index) {
       _currentIndex = SideBarChoice.Home.index;
     }
     _pageList = _buildVisiblePages();
@@ -276,6 +291,10 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
         index == SideBarChoice.Search.index) {
       index = SideBarChoice.Home.index;
     }
+    if (ContentSettings.hideDynamicTab &&
+        index == SideBarChoice.Dynamic.index) {
+      index = SideBarChoice.Home.index;
+    }
     _scrollToHideController.show();
     if (_currentIndex == index && _keyList.isNotEmpty) {
       BottomNavgationMixin? mixin =
@@ -286,9 +305,6 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
     } else {
       _currentIndex = index;
       if (_pageController.hasClients) {
-        // A PageView animation leaves the previously selected page on screen
-        // after the nav item has already changed. Switching tabs should be
-        // immediate, including quick taps across non-adjacent destinations.
         _pageController.jumpToPage(_visibleIndexFor(index));
       }
     }
@@ -308,10 +324,9 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Subscribe locally as well: the layout helper reads the root MediaQuery.
-    // A tablet rotation can change the visible pages without a preference edit.
     MediaQuery.sizeOf(context);
-    if (_searchNavigationHidden != appProvider.shouldHideSearchNavigation) {
+    if (_searchNavigationHidden != appProvider.shouldHideSearchNavigation ||
+        _dynamicTabHidden != ContentSettings.hideDynamicTab) {
       _currentIndex = appProvider.sidebarChoice.index;
       updateSearchNavigationVisibility();
     }
@@ -345,9 +360,8 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
                   ],
                 )
               : PageView(
-                  // The same pixel offset refers to a different logical tab
-                  // when search is inserted/removed. Use the new initial page.
-                  key: ValueKey(_searchNavigationHidden),
+                  key: ValueKey(
+                      '$_searchNavigationHidden-$_dynamicTabHidden'),
                   physics: const NeverScrollableScrollPhysics(),
                   controller: _pageController,
                   children: _pageList,
@@ -374,6 +388,22 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
             ),
           ),
         ),
+        if (ContentSettings.showFloatingSearch)
+          Positioned(
+            right: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 90,
+            child: GestureDetector(
+              onLongPress: () async {
+                await showContentConsole(context);
+                initPage();
+              },
+              child: FloatingActionButton.small(
+                heroTag: 'lf_floating_search',
+                onPressed: () => jumpToPage(SideBarChoice.Search.index),
+                child: const Icon(Icons.search),
+              ),
+            ),
+          ),
       ],
     );
     return PanelBackScope(
@@ -408,11 +438,14 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
         builder: (context, preferences, child) {
           final visibleChoices = visiblePanelChoices(
             hideSearch: preferences.hideSearchNavigation,
+            hideDynamic: ContentSettings.hideDynamicTab,
+          );
+          final currentVisibleIndex = visibleChoices.indexOf(
+            SideBarChoice.fromInt(_currentIndex),
           );
           return LoftifyGlassNavigationBar(
-            currentIndex: visibleChoices.indexOf(
-              SideBarChoice.fromInt(_currentIndex),
-            ),
+            currentIndex:
+                currentVisibleIndex < 0 ? 0 : currentVisibleIndex,
             enableBlur: !preferences.reduceTransparency,
             displayStyle: preferences.displayStyle,
             destinations: [
@@ -427,11 +460,12 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
                   lottieAsset: LottieFiles.navSearch,
                   label: appLocalizations.search,
                 ),
-              LoftifyNavigationDestination(
-                icon: LoftifyIcons.activity,
-                lottieAsset: LottieFiles.navHeart,
-                label: appLocalizations.dynamicTab,
-              ),
+              if (!ContentSettings.hideDynamicTab)
+                LoftifyNavigationDestination(
+                  icon: LoftifyIcons.activity,
+                  lottieAsset: LottieFiles.navHeart,
+                  label: appLocalizations.dynamicTab,
+                ),
               LoftifyNavigationDestination(
                 icon: LoftifyIcons.profile,
                 lottieAsset: LottieFiles.navUser,

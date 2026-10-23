@@ -76,13 +76,19 @@ class SearchPostFlowItemBuilder {
     );
   }
 
+  // ===== 修复：接收 onBlockUser 并传给 WaterfallFlowPostItemWidget =====
   static Widget buildWaterfallFlowPostItem(
-      BuildContext context, SearchPost item) {
+    BuildContext context,
+    SearchPost item, {
+    Function(int blogId)? onBlockUser,
+  }) {
     return WaterfallFlowPostItemWidget(
       key: ValueKey(item.id),
       item: getGeneralPostItem(item),
+      onBlockUser: onBlockUser,
     );
   }
+  // ===================================================================
 
   static bool isVideo(SearchPost item) {
     return item.videoPostView != null;

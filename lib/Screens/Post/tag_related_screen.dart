@@ -4,6 +4,8 @@ import 'package:loftify/Api/tag_api.dart';
 import 'package:loftify/Models/recommend_response.dart';
 
 import '../../Utils/enums.dart';
+import '../../Utils/global_filter_overlay.dart';
+import '../../Utils/my_content_filter.dart';
 import '../../Widgets/Item/item_builder.dart';
 import '../../Widgets/PostItem/recommend_flow_item_builder.dart';
 import '../../l10n/l10n.dart';
@@ -33,10 +35,16 @@ class _TagRelatedScreenState extends BaseDynamicState<TagRelatedScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      appBar: _buildAppBar(),
-      backgroundColor: ChewieTheme.getBackground(context),
-      body: _buildMainBody(),
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        _refreshController.callRefresh();
+      },
+      child: Scaffold(
+        appBar: _buildAppBar(),
+        backgroundColor: ChewieTheme.getBackground(context),
+        body: _buildMainBody(),
+      ),
     );
   }
 
@@ -58,10 +66,17 @@ class _TagRelatedScreenState extends BaseDynamicState<TagRelatedScreen>
           IToast.showTop(value['msg']);
         } else {
           List<PostListItem> tmp = [];
+          var rawListIsEmpty = true;
           if (value['data'] != null) {
             if (value['data']['list'] != null) {
-              tmp = (value['data']['list'] as List)
-                  .map((e) => PostListItem.fromJson(e))
+              final rawList = value['data']['list'] as List;
+              rawListIsEmpty = rawList.isEmpty;
+              final filteredRawList =
+                  MyContentFilter.filterRawList(rawList);
+              tmp = filteredRawList
+                  .whereType<Map>()
+                  .map((e) =>
+                      PostListItem.fromJson(Map<String, dynamic>.from(e)))
                   .toList();
               if (refresh) _postList.clear();
               for (var exist in _postList) {
@@ -71,7 +86,7 @@ class _TagRelatedScreenState extends BaseDynamicState<TagRelatedScreen>
             }
           }
           if (mounted) setState(() {});
-          if (tmp.isEmpty) {
+          if (rawListIsEmpty) {
             _noMore = true;
             return IndicatorResult.noMore;
           } else {
@@ -87,6 +102,15 @@ class _TagRelatedScreenState extends BaseDynamicState<TagRelatedScreen>
         _loading = false;
       }
     });
+  }
+
+  void _handleBlockUser(int blogId) {
+    _postList.removeWhere((item) =>
+        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
+    if (mounted) {
+      setState(() {});
+      IToast.showTop("已拉黑");
+    }
   }
 
   _buildMainBody() {
@@ -120,6 +144,7 @@ class _TagRelatedScreenState extends BaseDynamicState<TagRelatedScreen>
                 context,
                 _postList[index],
                 excludeTag: widget.tag,
+                onBlockUser: _handleBlockUser,
               ),
             );
           },

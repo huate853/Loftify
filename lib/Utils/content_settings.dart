@@ -16,6 +16,7 @@ class ContentSettings {
   static bool get showFloatingSearch => _getBool('show_floating_search');
   static set showFloatingSearch(bool v) => _setBool('show_floating_search', v);
 
+  // 这个就是导致报错的元凶，必须在文件里！
   static bool get hideDynamicTab => _getBool('hide_dynamic_tab');
   static set hideDynamicTab(bool v) => _setBool('hide_dynamic_tab', v);
 

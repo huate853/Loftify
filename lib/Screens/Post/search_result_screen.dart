@@ -26,6 +26,7 @@ import 'collection_detail_screen.dart';
 // ===== 新增引入 =====
 import '../../Utils/content_settings.dart';
 import '../../Utils/my_content_filter.dart';
+import '../../Utils/global_filter_overlay.dart'; // 引入全局筛选壳
 // ====================
 
 class _AllSearchMetadata {
@@ -244,6 +245,18 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
     );
   }
 
+  // ===== 筛选条件改变后的回调 =====
+  void _onFilterChanged() {
+    // 重置所有分页控制器并重新加载当前 Tab
+    for (final controller in _pagingControllers) {
+      controller.reset(notify: false);
+    }
+    _tabLoadState.reset(index: _currentTabIndex);
+    if (mounted) setState(() {});
+    unawaited(_ensureTabLoaded(_currentTabIndex));
+  }
+  // ==============================
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -254,28 +267,34 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
         if (_sugList.isNotEmpty) _buildSuggestList(),
       ],
     );
-    return Scaffold(
-      backgroundColor: ChewieTheme.getBackground(context),
-      appBar: ResponsiveAppBar(
-        showBack: true,
-        title: isWideLayout ? appLocalizations.searchResultPage : '',
-        titleLeftMargin: isWideLayout ? 16 : 0,
-        titleWidget: isWideLayout ? null : _buildSearchBar(),
-        bottomHeight: isWideLayout ? null : 56,
-        bottomWidget: isWideLayout ? null : _buildTabs(),
+
+    // 包裹全站筛选壳子
+    return GlobalFilterWrapper(
+      isTagPage: false, // 搜索结果页不显示月份筛选
+      onFilterChanged: _onFilterChanged,
+      child: Scaffold(
+        backgroundColor: ChewieTheme.getBackground(context),
+        appBar: ResponsiveAppBar(
+          showBack: true,
+          title: isWideLayout ? appLocalizations.searchResultPage : '',
+          titleLeftMargin: isWideLayout ? 16 : 0,
+          titleWidget: isWideLayout ? null : _buildSearchBar(),
+          bottomHeight: isWideLayout ? null : 56,
+          bottomWidget: isWideLayout ? null : _buildTabs(),
+        ),
+        body: isWideLayout
+            ? LoftifyContentFrame(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildSearchBar(),
+                    SizedBox(height: 56, child: _buildTabs()),
+                    Expanded(child: content),
+                  ],
+                ),
+              )
+            : content,
       ),
-      body: isWideLayout
-          ? LoftifyContentFrame(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildSearchBar(),
-                  SizedBox(height: 56, child: _buildTabs()),
-                  Expanded(child: content),
-                ],
-              ),
-            )
-          : content,
     );
   }
 
@@ -415,15 +434,16 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
     final data = _requireSearchData(value);
     final rawPosts = data['posts'];
     
-    // ===== 数据过滤 =====
+    // ===== 底层数据过滤 =====
     final filteredRawPosts = MyContentFilter.filterRawList(rawPosts is List ? rawPosts : []);
+    
     final posts = parsePagedDataItems<PostListItem>(
       filteredRawPosts,
       PostListItem.fromJson,
       onMalformed: (error, stackTrace) =>
           _logMalformedSearchItem('comprehensive post', error, stackTrace),
     );
-    // ====================
+    // ========================
     
     final nextOffset = (data['offset'] as num?)?.toInt() ?? cursor;
     _AllSearchMetadata? metadata;
@@ -532,9 +552,9 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
     final data = _requireSearchData(value);
     final rawItems = data['posts'];
     
-    // ===== 数据过滤 =====
+    // ===== 底层数据过滤 =====
     final filteredRawItems = MyContentFilter.filterRawList(rawItems is List ? rawItems : []);
-    // ====================
+    // ========================
     
     return PagedDataPage(
       items: parsePagedDataItems<SearchPost>(

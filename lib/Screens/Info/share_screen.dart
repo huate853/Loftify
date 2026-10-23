@@ -10,7 +10,9 @@ import '../../Models/download_task.dart';
 import '../../Screens/Download/batch_download_screen.dart';
 import '../../Utils/app_provider.dart';
 import '../../Utils/enums.dart';
+import '../../Utils/global_filter_overlay.dart';
 import '../../Utils/like_archive_util.dart';
+import '../../Utils/my_content_filter.dart';
 import '../../Widgets/Design/loftify_state_view.dart';
 import '../../Widgets/Item/item_builder.dart';
 import '../../Widgets/PostItem/common_info_post_item_builder.dart';
@@ -145,9 +147,13 @@ class _ShareScreenState extends BaseDynamicState<ShareScreen>
             ),
         ];
       }
-      final page = (response['items'] as List)
+      final rawItems = (response['items'] as List)
           .where((item) => item != null)
-          .map((item) => PostDetailData.fromJson(item))
+          .toList();
+      final filteredRawItems = MyContentFilter.filterRawList(rawItems);
+      final page = filteredRawItems
+          .whereType<Map>()
+          .map((item) => PostDetailData.fromJson(Map<String, dynamic>.from(item)))
           .toList();
       final posts = refresh ? <PostDetailData>[] : [..._shareList];
       posts.addAll(page);
@@ -194,12 +200,18 @@ class _ShareScreenState extends BaseDynamicState<ShareScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      backgroundColor: widget.infoMode == InfoMode.me
-          ? ChewieTheme.getBackground(context)
-          : Colors.transparent,
-      appBar: widget.infoMode == InfoMode.me ? _buildAppBar() : null,
-      body: _buildBody(),
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        _refreshController.callRefresh();
+      },
+      child: Scaffold(
+        backgroundColor: widget.infoMode == InfoMode.me
+            ? ChewieTheme.getBackground(context)
+            : Colors.transparent,
+        appBar: widget.infoMode == InfoMode.me ? _buildAppBar() : null,
+        body: _buildBody(),
+      ),
     );
   }
 

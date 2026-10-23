@@ -150,19 +150,50 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
     final year = ContentSettings.tagSelectedYear;
     final month = ContentSettings.tagSelectedMonth;
     if (year > 0 && month > 0) {
-      // 选中年月：请求会强制 total，这里同步筛选条高亮到「全部」
+      // 选中年月：请求会强制 total，这里不仅同步 UI，还要同步 _hottestParams
       if (_currentHottestIndex != 0) {
         setState(() {
           _currentHottestIndex = 0;
+          _hottestParams = _hottestParams.copyWith(
+            tagPostResultType: TagPostResultType.total,
+            postYm: "$year-${month.toString().padLeft(2, '0')}",
+          );
         });
+        _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
+      } else {
+        // 已经是 total 的情况，直接更新 postYm
+        setState(() {
+          _hottestParams = _hottestParams.copyWith(
+            postYm: "$year-${month.toString().padLeft(2, '0')}",
+          );
+        });
+        _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
       }
+
       if (_currentTabIndex != 2) {
         _tabController.animateTo(2);
         _setCurrentTab(2);
       }
       _refreshTabData(2);
+      
+      // 兜底强制刷新
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted && _currentTabIndex == 2) {
+          _hottestKey.currentState?.forceRefreshData();
+        }
+      });
     } else {
+      // 清除了时间
+      setState(() {
+        _hottestParams = _hottestParams.copyWith(postYm: "");
+      });
+      _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
       _refreshTabData(_currentTabIndex);
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted && _currentTabIndex == 2) {
+          _hottestKey.currentState?.forceRefreshData();
+        }
+      });
     }
   }
   // ==============================
@@ -496,10 +527,14 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   Widget _buildEntries() {
     final design = context.design;
     final entryHeight = LoftifyTagDiscoveryCard.preferredHeight(context);
-    bool showTagDress = controlProvider.globalControl.showTagDress;
-    bool showEntries = _tagDetailData!.collectionRank != null ||
-        (_tagDetailData!.propGiftTagConfig != null && showTagDress) ||
-        StringUtil.isNotEmpty(_tagDetailData!.relatedTags);
+    
+    // ===== 修复模块屏蔽不生效 =====
+    bool showCollection = _tagDetailData!.collectionRank != null && !ContentSettings.blockCollection;
+    bool showRelatedTags = StringUtil.isNotEmpty(_tagDetailData!.relatedTags) && !ContentSettings.blockRelatedTags;
+    bool showTagDress = controlProvider.globalControl.showTagDress && _tagDetailData!.propGiftTagConfig != null && !ContentSettings.blockRelatedDress;
+
+    bool showEntries = showCollection || showRelatedTags || showTagDress;
+
     return showEntries
         ? SizedBox(
             height: entryHeight + design.spacing.lg,
@@ -516,7 +551,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   children: [
-                    if (_tagDetailData!.collectionRank != null)
+                    if (showCollection)
                       _buildEntryItem(
                         darkBg: AssetUtil.collectionDarkIllust,
                         lightBg: AssetUtil.collectionLightIllust,
@@ -531,7 +566,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                           );
                         },
                       ),
-                    if (StringUtil.isNotEmpty(_tagDetailData!.relatedTags))
+                    if (showRelatedTags)
                       _buildEntryItem(
                         darkBg: AssetUtil.tagDarkIllust,
                         lightBg: AssetUtil.tagLightIllust,
@@ -544,8 +579,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                           );
                         },
                       ),
-                    if (_tagDetailData!.propGiftTagConfig != null &&
-                        showTagDress)
+                    if (showTagDress)
                       _buildEntryItem(
                         darkBg: AssetUtil.dressDarkIllust,
                         lightBg: AssetUtil.dressLightIllust,
@@ -1107,6 +1141,19 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     );
   }
 
+  // ===== 兜底强制刷新 =====
+  void forceRefreshData() {
+    _hottestNoMore = false;
+    _hottestResultOffset = 0;
+    _hottestResultRefreshController.callRefresh(
+      overOffset: 28,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      scrollController: widget.scrollController,
+      jumpToEdge: false,
+    );
+  }
+
   @override
   void dispose() {
     _hottestResultRefreshController.dispose();
@@ -1129,15 +1176,12 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     if (refresh) _hottestNoMore = false;
     _hottestResultLoading = true;
 
-    // ===== 核心：年月筛选覆盖逻辑 =====
-    final year = ContentSettings.tagSelectedYear;
-    final month = ContentSettings.tagSelectedMonth;
-    String postYm = "";
+    // ===== 核心：不再强行覆盖原版参数，直接尊重 _hottestParams =====
+    final String postYm = _hottestParams!.postYm;
     TagPostResultType finalResultType = _hottestParams!.tagPostResultType;
 
-    if (year > 0 && month > 0) {
-      postYm = "$year-${month.toString().padLeft(2, '0')}";
-      // 强制覆盖为 total（全部），因为特定年月的日榜/周榜没有意义
+    // 如果有 postYm，强制确保类型是 total（全部）
+    if (postYm.isNotEmpty) {
       finalResultType = TagPostResultType.total;
     }
 

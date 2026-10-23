@@ -113,6 +113,12 @@ class TagApi {
     return RequestUtil.post(
       "/newapi/tagPosts.json",
       data: param.toJson(),
+      options: Options(
+        headers: {
+          // 伪装成官方安卓客户端，让服务器下发老数据
+          "User-Agent": "LOFTER-Android 8.2.36 (V2309A; Android 9; null) WIFI",
+        },
+      ),
     );
   }
 
@@ -214,7 +220,15 @@ class GetTagPostListParams {
         tagType = "month";
         break;
     }
+    
+    // === 关键修复：确保 postYm 是 YYYYMM 格式 ===
+    String finalPostYm = "";
+    if (postYm.isNotEmpty) {
+      finalPostYm = postYm.replaceAll("-", "");
+    }
+
     return {
+      "product": "lofter-android-8.2.36", // 必须加上
       "tag": tag,
       "offset": offset,
       "type": tagType,
@@ -222,7 +236,7 @@ class GetTagPostListParams {
       "range": tagRangeType.index,
       "protectedFlag": protectedFlag ? 1 : 0,
       "postTypes": postTypes == TagPostType.noLimit ? "" : postTypes.index,
-      "postYm": postYm,
+      "postYm": finalPostYm, // "202403"
     };
   }
 
@@ -293,7 +307,6 @@ class GetTagPostListParams {
     );
   }
 
-  // 检查点：已增加 postYm 的修改支持
   GetTagPostListParams copyWith({
     int? offset,
     TagPostResultType? tagPostResultType,

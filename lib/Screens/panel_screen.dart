@@ -388,22 +388,23 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
             ),
           ),
         ),
+        // ===== 核心：全局悬浮操作台按钮 =====
         if (ContentSettings.showFloatingSearch)
           Positioned(
             right: 16,
             bottom: MediaQuery.of(context).padding.bottom + 90,
-            child: GestureDetector(
-              onLongPress: () async {
+            child: FloatingActionButton.small(
+              heroTag: 'lf_floating_console',
+              onPressed: () async {
+                // 呼出操作台
                 await showContentConsole(context);
+                // 关闭操作台后，刷新当前页面，让开关立即生效
                 initPage();
               },
-              child: FloatingActionButton.small(
-                heroTag: 'lf_floating_search',
-                onPressed: () => jumpToPage(SideBarChoice.Search.index),
-                child: const Icon(Icons.search),
-              ),
+              child: const Icon(Icons.tune), // 调节图标
             ),
           ),
+        // =====================================
       ],
     );
     return PanelBackScope(

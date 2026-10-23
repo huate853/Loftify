@@ -32,7 +32,7 @@ import '../Widgets/loftify_icons.dart';
 import '../l10n/l10n.dart';
 import 'Navigation/home_screen.dart';
 import 'Navigation/search_screen.dart';
-import 'Navigation/welcome_screen.dart';
+import 'Navigation/welcome_screen.dart'; // 确保引入
 
 class PanelBackScope extends StatelessWidget {
   const PanelBackScope({
@@ -396,12 +396,12 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
             child: FloatingActionButton.small(
               heroTag: 'lf_floating_console',
               onPressed: () async {
-                // 呼出操作台
-                await showContentConsole(context);
+                // 呼出模块开关
+                await showUiConsole(context);
                 // 关闭操作台后，刷新当前页面，让开关立即生效
                 initPage();
               },
-              child: const Icon(Icons.tune), // 调节图标
+              child: const Icon(Icons.tune), 
             ),
           ),
         // =====================================

@@ -149,51 +149,33 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   void _onFilterChanged() {
     final year = ContentSettings.tagSelectedYear;
     final month = ContentSettings.tagSelectedMonth;
+    
+    // 同步 _hottestParams
     if (year > 0 && month > 0) {
-      // 选中年月：请求会强制 total，这里不仅同步 UI，还要同步 _hottestParams
-      if (_currentHottestIndex != 0) {
-        setState(() {
-          _currentHottestIndex = 0;
-          _hottestParams = _hottestParams.copyWith(
-            tagPostResultType: TagPostResultType.total,
-            postYm: "$year-${month.toString().padLeft(2, '0')}",
-          );
-        });
-        _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
-      } else {
-        // 已经是 total 的情况，直接更新 postYm
-        setState(() {
-          _hottestParams = _hottestParams.copyWith(
-            postYm: "$year-${month.toString().padLeft(2, '0')}",
-          );
-        });
-        _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
-      }
+      _currentHottestIndex = 0;
+      _hottestParams = _hottestParams.copyWith(
+        tagPostResultType: TagPostResultType.total,
+        postYm: "$year-${month.toString().padLeft(2, '0')}",
+      );
+    } else {
+      _hottestParams = _hottestParams.copyWith(postYm: "");
+    }
+    _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
 
-      if (_currentTabIndex != 2) {
-        _tabController.animateTo(2);
-        _setCurrentTab(2);
-      }
-      _refreshTabData(2);
+    // 如果当前不在“最热”Tab，先切过去
+    if (_currentTabIndex != 2) {
+      _tabController.animateTo(2);
+      _setCurrentTab(2);
       
-      // 兜底强制刷新
+      // 等待 Tab 切换完成后，再触发刷新
       Future.delayed(const Duration(milliseconds: 350), () {
-        if (mounted && _currentTabIndex == 2) {
-          _hottestKey.currentState?.forceRefreshData();
+        if (mounted) {
+          _hottestKey.currentState?.forceApplyParams(_hottestParams);
         }
       });
     } else {
-      // 清除了时间
-      setState(() {
-        _hottestParams = _hottestParams.copyWith(postYm: "");
-      });
-      _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
-      _refreshTabData(_currentTabIndex);
-      Future.delayed(const Duration(milliseconds: 350), () {
-        if (mounted && _currentTabIndex == 2) {
-          _hottestKey.currentState?.forceRefreshData();
-        }
-      });
+      // 已经在“最热”Tab，直接强制刷新
+      _hottestKey.currentState?.forceApplyParams(_hottestParams);
     }
   }
   // ==============================
@@ -528,7 +510,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
     final design = context.design;
     final entryHeight = LoftifyTagDiscoveryCard.preferredHeight(context);
     
-    // ===== 修复模块屏蔽不生效 =====
+    // ===== 模块屏蔽逻辑 =====
     bool showCollection = _tagDetailData!.collectionRank != null && !ContentSettings.blockCollection;
     bool showRelatedTags = StringUtil.isNotEmpty(_tagDetailData!.relatedTags) && !ContentSettings.blockRelatedTags;
     bool showTagDress = controlProvider.globalControl.showTagDress && _tagDetailData!.propGiftTagConfig != null && !ContentSettings.blockRelatedDress;
@@ -719,7 +701,9 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                 ContentSettings.tagSelectedMonth = 0;
                 
                 _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
-                _refreshTabData(2);
+                
+                // 直接发请求，不依赖 EasyRefresh 的 callRefresh
+                _hottestKey.currentState?.forceApplyParams(_hottestParams);
               },
               // ==================================================
               onFilter: () {
@@ -733,7 +717,8 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                         HiveUtil.tagHottestFilterKey,
                         _hottestParams,
                       );
-                      _refreshTabData(2);
+                      // 原版右上角漏斗选了时间，也强制刷新
+                      _hottestKey.currentState?.forceApplyParams(_hottestParams);
                     },
                   ),
                 );
@@ -1147,17 +1132,14 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     );
   }
 
-  // ===== 兜底强制刷新 =====
-  void forceRefreshData() {
-    _hottestNoMore = false;
+  // ===== 新增：强制覆盖参数并刷新数据 =====
+  void forceApplyParams(GetTagPostListParams newParam) {
+    _hottestParams = newParam.clone();
     _hottestResultOffset = 0;
-    _hottestResultRefreshController.callRefresh(
-      overOffset: 28,
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      scrollController: widget.scrollController,
-      jumpToEdge: false,
-    );
+    _hottestNoMore = false;
+    _hottestList.clear();
+    if (mounted) setState(() {});
+    _fetchHottestResult(refresh: true);
   }
 
   @override
@@ -1182,11 +1164,9 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     if (refresh) _hottestNoMore = false;
     _hottestResultLoading = true;
 
-    // ===== 核心：不再强行覆盖原版参数，直接尊重 _hottestParams =====
     final String postYm = _hottestParams!.postYm;
     TagPostResultType finalResultType = _hottestParams!.tagPostResultType;
 
-    // 如果有 postYm，强制确保类型是 total（全部）
     if (postYm.isNotEmpty) {
       finalResultType = TagPostResultType.total;
     }

@@ -520,6 +520,7 @@ class WaterfallFlowPostItemWidgetState
                           GestureDetector(
                             onTap: () async {
                               HapticFeedback.mediumImpact();
+                              // === 真正的账号拉黑逻辑 ===
                               try {
                                 final val = await UserApi.blockOrUnBlock(
                                     isBlock: true, blogId: item.blogId);

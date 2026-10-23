@@ -532,6 +532,7 @@ class WaterfallFlowPostItemWidgetState
                                   if (val != null && val['meta'] != null && val['meta']['status'] == 200) {
                                     try {
                                       widget.onBlockUser!(item.blogId);
+                                      IToast.showTop("健康值+1");
                                     } catch (e) {
                                       // 忽略 UI 刷新时的局部异常，确保用户感知为成功
                                     }

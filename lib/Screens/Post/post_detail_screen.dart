@@ -54,6 +54,9 @@ import '../../Widgets/loftify_reaction_icon.dart';
 import '../../l10n/l10n.dart';
 import '../Info/user_detail_screen.dart';
 import 'grain_detail_screen.dart';
+// ===== 新增引入 =====
+import '../../Utils/content_settings.dart';
+// ====================
 
 class PostDetailScreen extends StatefulWidget {
   const PostDetailScreen({
@@ -322,8 +325,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
       if (mounted) setState(() {});
       unawaited(_uploadHistory());
 
-      // Gift and comment data enrich the page, but must not turn a valid
-      // article into a full-page error when either auxiliary endpoint fails.
       try {
         await _fetchGift();
       } catch (error, stackTrace) {
@@ -444,6 +445,10 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
   }
 
   _fetchHotComments({int? expectedPostId}) async {
+    // ===== 核心：如果屏蔽评论区，不请求评论接口 =====
+    if (ContentSettings.blockComments) return IndicatorResult.none;
+    // ============================================
+    
     final requestPostId = expectedPostId ?? postId;
     final requestBlogId = blogId;
     final requestPublishTime = _postDetailData!.post!.publishTime;
@@ -733,7 +738,10 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
     await Future.wait<dynamic>([
       _fetchGift(expectedPostId: expectedPostId),
       _fetchHotComments(expectedPostId: expectedPostId),
-      _fetchRecommendPosts(append: false, expectedPostId: expectedPostId),
+      // ===== 核心：如果屏蔽了推荐流，跳过加载 =====
+      if (!ContentSettings.blockAutoRecommend)
+        _fetchRecommendPosts(append: false, expectedPostId: expectedPostId),
+      // ============================================
     ]);
   }
 
@@ -833,6 +841,10 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
     bool append = true,
     int? expectedPostId,
   }) async {
+    // ===== 核心：如果屏蔽了推荐流，直接返回 =====
+    if (ContentSettings.blockAutoRecommend) return IndicatorResult.none;
+    // ============================================
+
     final requestPostId = expectedPostId ?? postId;
     final requestBlogId = blogId;
     if (requestPostId != postId) return IndicatorResult.none;
@@ -1302,13 +1314,35 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
           PostContentSliver(
             children: _buildCommonContent(false),
           ),
-          _buildRecommendFlow(),
+          // ===== 核心：手机端不显示底部推荐流 =====
+          if (!ContentSettings.blockAutoRecommend) _buildRecommendFlow(),
+          // ============================================
         ],
       ),
     );
   }
 
   _buildTabletMainBody() {
+    // ===== 核心：平板端如果屏蔽了推荐流，直接铺满全屏，不给右侧留空 =====
+    if (ContentSettings.blockAutoRecommend) {
+      return EasyRefresh.builder(
+        key: _postBodyPaneKey,
+        onRefresh: _onRefresh,
+        triggerAxis: Axis.vertical,
+        childBuilder: (context, physics) =>
+            NotificationListener<ScrollNotification>(
+          onNotification: _handlePostScrollNotification,
+          child: CustomScrollView(
+            controller: _tabletScrollController,
+            physics: physics,
+            slivers: [
+              PostContentSliver(children: _buildCommonContent(true)),
+            ],
+          ),
+        ),
+      );
+    }
+    // ==================================================================
     return LayoutBuilder(
         builder: (context, constraints) => ResizableContainer(
               direction: Axis.horizontal,
@@ -1339,7 +1373,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
                   ),
                 ),
                 ResizableChild(
-                  // minSize: 300,
                   size: const ResizableSize.expand(),
                   child: NotificationListener<ScrollNotification>(
                     onNotification: _handlePostScrollNotification,
@@ -1612,20 +1645,29 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
           child: _buildEggContent(),
         ),
       ),
-      if (hasCollection())
+      // ===== 核心：控制合集和粮单显示 =====
+      if (!ContentSettings.blockCollection) ...[
+        if (hasCollection())
+          _buildReadingRail(
+            _buildCollectionItem(key: _collectionViewportKey),
+          ),
+        if (hasGrain())
+          _buildReadingRail(_buildGrainItem(key: _grainViewportKey)),
+      ],
+      // ====================================
+
+      // ===== 核心：控制相关标签显示 =====
+      if (!ContentSettings.blockRelatedTags)
         _buildReadingRail(
-          _buildCollectionItem(key: _collectionViewportKey),
+          GestureDetector(
+            key: _tagViewportKey,
+            onDoubleTapDown: _handleDoubleTapDown,
+            onDoubleTap: _handleDoubleTap,
+            child: _buildTagList(),
+          ),
         ),
-      if (hasGrain())
-        _buildReadingRail(_buildGrainItem(key: _grainViewportKey)),
-      _buildReadingRail(
-        GestureDetector(
-          key: _tagViewportKey,
-          onDoubleTapDown: _handleDoubleTapDown,
-          onDoubleTap: _handleDoubleTap,
-          child: _buildTagList(),
-        ),
-      ),
+      // ==================================
+
       _buildReadingRail(_buildMarkInfo()),
       _buildReadingRail(
         Column(
@@ -1636,71 +1678,78 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
           ],
         ),
       ),
-      _buildReadingRail(
-        Container(
-          key: commentKey,
-          child: ItemBuilder.buildTitle(
-            context,
-            title: hotComments.isNotEmpty
-                ? appLocalizations.hotComment
-                : appLocalizations.latestComment,
-            bottomMargin: 12,
-            topMargin: 24,
-          ),
-        ),
-      ),
-      _buildReadingRail(
-        _buildComments(
-          hotComments.isNotEmpty ? hotComments : newComments,
-          key: _commentListViewportKey,
-        ),
-      ),
-      if (totalHotOrNewComments <= 0)
+
+      // ===== 核心：控制评论区显示 =====
+      if (!ContentSettings.blockComments) ...[
         _buildReadingRail(
           Container(
-            key: _commentEndViewportKey,
-            alignment: Alignment.center,
-            margin: const EdgeInsets.symmetric(vertical: 24),
-            child: EmptyPlaceholder(
-              text: appLocalizations.noComment,
-              topPadding: 0,
+            key: commentKey,
+            child: ItemBuilder.buildTitle(
+              context,
+              title: hotComments.isNotEmpty
+                  ? appLocalizations.hotComment
+                  : appLocalizations.latestComment,
+              bottomMargin: 12,
+              topMargin: 24,
             ),
           ),
         ),
-      if (totalHotOrNewComments > 0)
         _buildReadingRail(
-          Center(
-            key: _commentEndViewportKey,
-            child: Container(
-              margin: EdgeInsets.only(
-                left: isTablet ? 0 : MediaQuery.sizeOf(context).width / 5,
-                right: isTablet ? 0 : MediaQuery.sizeOf(context).width / 5,
-                top: 12,
-                bottom: isTablet ? 20 : 0,
-              ),
-              width: isTablet ? 240 : null,
-              child: RoundIconTextButton(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                text: appLocalizations.viewAllComments,
-                onPressed: () {
-                  BottomSheetBuilder.showBottomSheet(
-                    context,
-                    (context) => CommentBottomSheet(
-                      postId: postId,
-                      blogId: blogId,
-                      publishTime: _postDetailData!.post!.publishTime,
-                    ),
-                    enableDrag: false,
-                    backgroundColor: ChewieTheme.getBackground(context),
-                    topRadius: const Radius.circular(24),
-                  );
-                },
+          _buildComments(
+            hotComments.isNotEmpty ? hotComments : newComments,
+            key: _commentListViewportKey,
+          ),
+        ),
+        if (totalHotOrNewComments <= 0)
+          _buildReadingRail(
+            Container(
+              key: _commentEndViewportKey,
+              alignment: Alignment.center,
+              margin: const EdgeInsets.symmetric(vertical: 24),
+              child: EmptyPlaceholder(
+                text: appLocalizations.noComment,
+                topPadding: 0,
               ),
             ),
           ),
-        ),
-      if (!isTablet)
+        if (totalHotOrNewComments > 0)
+          _buildReadingRail(
+            Center(
+              key: _commentEndViewportKey,
+              child: Container(
+                margin: EdgeInsets.only(
+                  left: isTablet ? 0 : MediaQuery.sizeOf(context).width / 5,
+                  right: isTablet ? 0 : MediaQuery.sizeOf(context).width / 5,
+                  top: 12,
+                  bottom: isTablet ? 20 : 0,
+                ),
+                width: isTablet ? 240 : null,
+                child: RoundIconTextButton(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                  text: appLocalizations.viewAllComments,
+                  onPressed: () {
+                    BottomSheetBuilder.showBottomSheet(
+                      context,
+                      (context) => CommentBottomSheet(
+                        postId: postId,
+                        blogId: blogId,
+                        publishTime: _postDetailData!.post!.publishTime,
+                      ),
+                      enableDrag: false,
+                      backgroundColor: ChewieTheme.getBackground(context),
+                      topRadius: const Radius.circular(24),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+      ],
+      // ==================================
+
+      // ===== 核心：控制更多推荐标题显示 =====
+      if (!isTablet && !ContentSettings.blockAutoRecommend)
         _buildReadingRail(
           ItemBuilder.buildTitle(
             context,
@@ -1709,6 +1758,7 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             topMargin: 24,
           ),
         ),
+      // ======================================
     ];
   }
 
@@ -1720,6 +1770,7 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
   }
 
   Future<void> jumpToComment() async {
+    if (ContentSettings.blockComments) return;
     final tabletBody = _tabletScrollController.hasClients;
     final controller = tabletBody
         ? _tabletScrollController
@@ -2108,7 +2159,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
         .map((e) => e.toString())
         .toList();
     double heightMinThreshold = 200;
-    // double heightMaxThreshold = MediaQuery.sizeOf(context).height - 340;
     double heightMaxThreshold = 600;
     double preferedHeight = 0;
     double preferedWidth = MediaQuery.sizeOf(context).width;
@@ -2696,6 +2746,20 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             ),
             onTap: _handleRecommend,
           ),
+          // ===== 核心：如果屏蔽了评论区，隐藏底部的评论按钮 =====
+          if (!ContentSettings.blockComments) ...[
+            const SizedBox(width: 8),
+            DetailActionButton(
+              label: _postDetailData!.post!.postCount!.responseCount > 0
+                  ? StringUtil.formatCount(
+                      _postDetailData!.post!.postCount!.responseCount,
+                    )
+                  : appLocalizations.comment,
+              icon: const ChewieIcon(LoftifyIcons.comment),
+              onTap: jumpToComment,
+            ),
+          ],
+          // ======================================================
           const Spacer(),
           DetailActionButton(
             label: _postDetailData!.subscribedNotNull
@@ -2786,15 +2850,18 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             selected: _postDetailData!.shared == true,
           ),
         ),
-        DetailActionButton(
-          label: _postDetailData!.post!.postCount!.responseCount > 0
-              ? StringUtil.formatCount(
-                  _postDetailData!.post!.postCount!.responseCount,
-                )
-              : appLocalizations.comment,
-          icon: const ChewieIcon(LoftifyIcons.comment),
-          onTap: jumpToComment,
-        ),
+        // ===== 核心：悬浮操作栏也隐藏评论按钮 =====
+        if (!ContentSettings.blockComments)
+          DetailActionButton(
+            label: _postDetailData!.post!.postCount!.responseCount > 0
+                ? StringUtil.formatCount(
+                    _postDetailData!.post!.postCount!.responseCount,
+                  )
+                : appLocalizations.comment,
+            icon: const ChewieIcon(LoftifyIcons.comment),
+            onTap: jumpToComment,
+          ),
+        // ============================================
         DetailActionButton(
           label: _postDetailData!.subscribedNotNull
               ? appLocalizations.favorited
@@ -2838,6 +2905,10 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
   }
 
   Widget _buildRecommendFlow({bool sliver = true}) {
+    if (ContentSettings.blockAutoRecommend) {
+      if (sliver) return const SliverToBoxAdapter(child: SizedBox.shrink());
+      return const SizedBox.shrink();
+    }
     Widget list = SliverPadding(
       padding:
           EdgeInsets.only(top: sliver ? 10 : 0, left: sliver ? 8 : 5, right: 8),
@@ -2854,18 +2925,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
                 context,
                 _recommendPosts[index],
                 showMoreButton: true,
-                // onShieldContent: () {
-                //   _recommendPosts.remove(_recommendPosts[index]);
-                //   setState(() {});
-                // },
-                // onShieldTag: (tag) {
-                //   _recommendPosts.remove(_recommendPosts[index]);
-                //   setState(() {});
-                // },
-                // onShieldUser: () {
-                //   _recommendPosts.remove(_recommendPosts[index]);
-                //   setState(() {});
-                // },
               ),
             );
           },
@@ -2989,7 +3048,7 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
       ),
       actions: _isPostContentReady
           ? [
-              if (collection != null)
+              if (collection != null && !ContentSettings.blockCollection)
                 LoftifyContextPill(
                   icon: LoftifyIcons.collection,
                   label: compactCollectionLabel

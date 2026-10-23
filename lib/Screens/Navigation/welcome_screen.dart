@@ -128,24 +128,35 @@ class _FilterConsoleState extends State<FilterConsole> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text("隐藏屏蔽词 (变成 ██)"),
+            const Text("隐藏屏蔽词内容"),
             Switch(value: ContentSettings.hideKeywords, onChanged: (v) => setState(() => ContentSettings.hideKeywords = v)),
           ],
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: TextField(controller: _keywordController, decoration: const InputDecoration(hintText: '输入屏蔽词，如：abo', isDense: true), onSubmitted: (_) => _addKeyword())),
+            Expanded(child: TextField(controller: _keywordController, decoration: const InputDecoration(hintText: '输入屏蔽词', isDense: true), onSubmitted: (_) => _addKeyword())),
             IconButton(icon: const Icon(Icons.add), onPressed: _addKeyword),
           ],
         ),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8, runSpacing: 8,
-          children: _keywords.map((k) => InputChip(label: Text(k), onDeleted: () {
-            setState(() { _keywords.remove(k); ContentSettings.keywords = _keywords; });
-          })).toList(),
-        ),
+        if (ContentSettings.hideKeywords)
+          // 如果勾选了隐藏，不显示具体词，直接连成一段“屏蔽词1屏蔽词2”
+          Text(
+            _keywords.asMap().entries.map((e) => '屏蔽词${e.key + 1}').join(''),
+            style: const TextStyle(fontSize: 14, color: Colors.grey),
+          )
+        else
+          // 没勾选，正常显示一个个气泡
+          Wrap(
+            spacing: 8, runSpacing: 8,
+            children: _keywords.map((k) => InputChip(
+              label: Text(k), 
+              onDeleted: () {
+                setState(() { _keywords.remove(k); ContentSettings.keywords = _keywords; });
+              },
+            )).toList(),
+          ),
       ],
     );
   }

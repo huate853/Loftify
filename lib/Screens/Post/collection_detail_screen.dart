@@ -24,6 +24,10 @@ import '../../Widgets/PostDetail/detail_bottom_bar.dart';
 import '../../Widgets/Design/loftify_media_overlays.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../l10n/l10n.dart';
+// ===== 新增引入 =====
+import '../../Utils/content_settings.dart';
+import '../../Utils/my_content_filter.dart';
+// ====================
 
 class CollectionDetailScreen extends StatefulWidget {
   const CollectionDetailScreen({
@@ -104,7 +108,13 @@ class CollectionDetailScreenState
           postCollection =
               FullPostCollection.fromJson(value['response']['collection']);
           blogInfo = SimpleBlogInfo.fromJson(value['response']['blogInfo']);
+          
           List<dynamic> t = value['response']['items'];
+          
+          // ===== 新增：数据过滤（点赞、屏蔽词） =====
+          t = MyContentFilter.filterRawList(t);
+          // =========================================
+          
           List<PostDetailData> newPosts = [];
           for (var e in t) {
             if (e != null) {
@@ -137,8 +147,11 @@ class CollectionDetailScreenState
             ));
           }
           if (mounted) setState(() {});
+          
+          // 注意：postCollection!.postCount 是服务器返回的原始总数
+          // 即使被过滤，只要服务器返回了，就说明还有下一页，过滤后的 newPosts.isEmpty 不会影响继续加载
           noMore =
-              posts.length >= postCollection!.postCount || newPosts.isEmpty;
+              posts.length >= postCollection!.postCount || value['response']['items'].isEmpty;
           if (noMore && !refresh) {
             return IndicatorResult.noMore;
           } else {
@@ -351,7 +364,6 @@ class CollectionDetailScreenState
                 ),
               ],
             ),
-            // if (StringUtil.isNotEmpty(postCollection!.tags)) _buildTagList(),
             const SizedBox(height: 8),
             MyDivider(
               horizontal: 0,

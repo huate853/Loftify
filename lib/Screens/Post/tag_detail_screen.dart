@@ -147,10 +147,15 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
 
   // ===== 筛选条件改变后的回调 =====
   void _onFilterChanged() {
-    int year = ContentSettings.tagSelectedYear;
-    int month = ContentSettings.tagSelectedMonth;
+    final year = ContentSettings.tagSelectedYear;
+    final month = ContentSettings.tagSelectedMonth;
     if (year > 0 && month > 0) {
-      // 如果选了年月，强制切到“最热”Tab
+      // 选中年月：请求会强制 total，这里同步筛选条高亮到「全部」
+      if (_currentHottestIndex != 0) {
+        setState(() {
+          _currentHottestIndex = 0;
+        });
+      }
       if (_currentTabIndex != 2) {
         _tabController.animateTo(2);
         _setCurrentTab(2);
@@ -935,7 +940,8 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
   }
 
   void _handleBlockUser(int blogId) {
-    _recommendList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
+    _recommendList.removeWhere((item) =>
+        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
     if (mounted) {
       setState(() {});
       IToast.showTop("已拉黑");
@@ -958,14 +964,19 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
           return IndicatorResult.fail;
         } else {
           List<PostListItem> newPosts = [];
+          bool rawListIsEmpty = true;
           if (value['data'] != null) {
             _recommendResultOffset = value['data']['offset'];
             if (refresh) _recommendList.clear();
-            
-            // 过滤逻辑
+
             final rawList = value['data']['list'] as List;
+            rawListIsEmpty = rawList.isEmpty;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
-            newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
+            newPosts = filteredRawList
+                .whereType<Map>()
+                .map((e) =>
+                    PostListItem.fromJson(Map<String, dynamic>.from(e)))
+                .toList();
 
             newPosts.removeWhere((e) =>
                 _recommendList.any((element) => element.itemId == e.itemId));
@@ -974,7 +985,7 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
                 .removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
-          _recommendNoMore = newPosts.isEmpty;
+          _recommendNoMore = rawListIsEmpty;
           if (_recommendNoMore && !refresh) {
             return IndicatorResult.noMore;
           } else {
@@ -1103,7 +1114,8 @@ class HottestTabState extends BaseDynamicState<HottestTab>
   }
 
   void _handleBlockUser(int blogId) {
-    _hottestList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
+    _hottestList.removeWhere((item) =>
+        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
     if (mounted) {
       setState(() {});
       IToast.showTop("已拉黑");
@@ -1116,7 +1128,7 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     }
     if (refresh) _hottestNoMore = false;
     _hottestResultLoading = true;
-    
+
     // ===== 核心：年月筛选覆盖逻辑 =====
     final year = ContentSettings.tagSelectedYear;
     final month = ContentSettings.tagSelectedMonth;
@@ -1142,14 +1154,19 @@ class HottestTabState extends BaseDynamicState<HottestTab>
           return IndicatorResult.fail;
         } else {
           List<PostListItem> newPosts = [];
+          bool rawListIsEmpty = true;
           if (value['data'] != null) {
             _hottestResultOffset = value['data']['offset'];
             if (refresh) _hottestList.clear();
-            
-            // 过滤逻辑
+
             final rawList = value['data']['list'] as List;
+            rawListIsEmpty = rawList.isEmpty;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
-            newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
+            newPosts = filteredRawList
+                .whereType<Map>()
+                .map((e) =>
+                    PostListItem.fromJson(Map<String, dynamic>.from(e)))
+                .toList();
 
             newPosts.removeWhere((e) =>
                 _hottestList.any((element) => element.itemId == e.itemId));
@@ -1158,7 +1175,7 @@ class HottestTabState extends BaseDynamicState<HottestTab>
                 .removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
-          _hottestNoMore = newPosts.isEmpty;
+          _hottestNoMore = rawListIsEmpty;
           if (_hottestNoMore && !refresh) {
             return IndicatorResult.noMore;
           } else {
@@ -1286,7 +1303,8 @@ class NewestTabState extends BaseDynamicState<NewestTab>
   }
 
   void _handleBlockUser(int blogId) {
-    _newestList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
+    _newestList.removeWhere((item) =>
+        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
     if (mounted) {
       setState(() {});
       IToast.showTop("已拉黑");
@@ -1308,15 +1326,20 @@ class NewestTabState extends BaseDynamicState<NewestTab>
           return IndicatorResult.fail;
         } else {
           List<PostListItem> newPosts = [];
+          bool rawListIsEmpty = true;
 
           if (value['data'] != null) {
             _newestResultOffset = value['data']['offset'];
             if (refresh) _newestList.clear();
-            
-            // 过滤逻辑
+
             final rawList = value['data']['list'] as List;
+            rawListIsEmpty = rawList.isEmpty;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
-            newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
+            newPosts = filteredRawList
+                .whereType<Map>()
+                .map((e) =>
+                    PostListItem.fromJson(Map<String, dynamic>.from(e)))
+                .toList();
 
             newPosts.removeWhere((e) =>
                 _newestList.any((element) => element.itemId == e.itemId));
@@ -1325,7 +1348,7 @@ class NewestTabState extends BaseDynamicState<NewestTab>
                 .removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
-          _newestNoMore = newPosts.isEmpty;
+          _newestNoMore = rawListIsEmpty;
           if (_newestNoMore && !refresh) {
             return IndicatorResult.noMore;
           } else {

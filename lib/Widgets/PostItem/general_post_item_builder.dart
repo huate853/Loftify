@@ -110,10 +110,12 @@ Widget _buildInvalidPostCard(
 
 class WaterfallFlowPostItemWidget extends StatefulWidget {
   final GeneralPostItem item;
+  final Function(int blogId)? onBlockUser; // 新增回调
 
   const WaterfallFlowPostItemWidget({
     super.key,
     required this.item,
+    this.onBlockUser,
   });
 
   @override
@@ -492,6 +494,7 @@ class WaterfallFlowPostItemWidgetState
                     ),
                   ),
                 ),
+                // ===== 修改区域：作者名字旁边加 ⊘ =====
                 Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -503,15 +506,43 @@ class WaterfallFlowPostItemWidgetState
                         ),
                       );
                     },
-                    child: Text(
-                      item.blogNickName,
-                      style: design.typography.metadata.copyWith(
-                        color: design.colors.textSecondary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            item.blogNickName,
+                            style: design.typography.metadata.copyWith(
+                              color: design.colors.textSecondary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (widget.onBlockUser != null)
+                          GestureDetector(
+                            onTap: () async {
+                              HapticFeedback.mediumImpact();
+                              final val = await UserApi.blockOrUnBlock(isBlock: true, blogId: item.blogId);
+                              if (val['meta']['status'] == 200) {
+                                // 成功拉黑，通知列表移除
+                                widget.onBlockUser!(item.blogId);
+                              } else {
+                                IToast.showTop(val['meta']['desc'] ?? val['meta']['msg']);
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 4, right: 4),
+                              child: Icon(
+                                Icons.block,
+                                size: 14,
+                                color: design.colors.textSecondary.withOpacity(0.5),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
+                // ========================================
                 SizedBox(width: design.spacing.sm),
                 if (item.showLikeButton == true)
                   LoftifyItemBuilder.buildLikedButton(
@@ -1118,8 +1149,6 @@ class TilePostItemWidgetState extends State<TilePostItemWidget>
             content: content,
             selectable: false,
             style: Theme.of(context).textTheme.bodyMedium,
-            // linkBold: false,
-            // selectable: false,
           ),
         if (title.isNotEmpty || content.isNotEmpty) const SizedBox(height: 10),
       ],

@@ -162,7 +162,7 @@ class _ShareScreenState extends BaseDynamicState<ShareScreen>
         ..clear()
         ..addAll(posts);
       _initPhase = InitPhase.successful;
-      _noMore = page.isEmpty || posts.length >= total;
+      _noMore = rawItems.isEmpty || posts.length >= total;
       _total = total;
       return !refresh && _noMore
           ? IndicatorResult.noMore

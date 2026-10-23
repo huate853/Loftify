@@ -27,9 +27,10 @@ import '../../Widgets/PostItem/grain_post_item_builder.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../Widgets/loftify_reaction_icon.dart';
 import '../../l10n/l10n.dart';
-// ===== 新增引入 =====
+// ===== 引入全局筛选与过滤 =====
 import '../../Utils/my_content_filter.dart';
-// ====================
+import '../../Utils/global_filter_overlay.dart';
+// ============================
 import 'home_screen.dart';
 
 typedef _TimelineCursor = ({int show, int publish, int share});
@@ -207,46 +208,53 @@ class DynamicScreenState extends BaseDynamicState<DynamicScreen>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    return Scaffold(
-      backgroundColor: ChewieTheme.getBackground(context),
-      appBar: appProvider.token.isNotEmpty ? _buildAppBar() : null,
-      body: appProvider.token.isNotEmpty
-          ? Stack(
-              children: [
-                TabBarView(
-                  controller: _tabController,
-                  children: [
-                    FollowTab(
-                      key: _followTabKey,
-                      scrollController: _followScrollController,
-                    ),
-                    SubscribeTagTab(
-                      key: _tagTabKey,
-                      scrollController: _tagScrollController,
-                    ),
-                    SubscribeCollectionTab(
-                      key: _collectionTabKey,
-                      scrollController: _collectionScrollController,
-                    ),
-                    SubscribeGrainTab(
-                      key: _grainTabKey,
-                      scrollController: _grainScrollController,
-                    ),
-                  ],
-                ),
-                Positioned(
-                  right: ResponsiveUtil.isLandscapeLayout() ? 16 : 12,
-                  bottom: ResponsiveUtil.isLandscapeLayout() ? 16 : 76,
-                  child: ScrollToHide.multi(
-                    controller: _scrollToHideController,
-                    scrollControllers: getScrollControllers(),
-                    hideDirection: Axis.vertical,
-                    child: _buildFloatingButtons(),
+    // 包裹全局筛选壳子
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      onFilterChanged: () {
+        refresh();
+      },
+      child: Scaffold(
+        backgroundColor: ChewieTheme.getBackground(context),
+        appBar: appProvider.token.isNotEmpty ? _buildAppBar() : null,
+        body: appProvider.token.isNotEmpty
+            ? Stack(
+                children: [
+                  TabBarView(
+                    controller: _tabController,
+                    children: [
+                      FollowTab(
+                        key: _followTabKey,
+                        scrollController: _followScrollController,
+                      ),
+                      SubscribeTagTab(
+                        key: _tagTabKey,
+                        scrollController: _tagScrollController,
+                      ),
+                      SubscribeCollectionTab(
+                        key: _collectionTabKey,
+                        scrollController: _collectionScrollController,
+                      ),
+                      SubscribeGrainTab(
+                        key: _grainTabKey,
+                        scrollController: _grainScrollController,
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            )
-          : LoftifyItemBuilder.buildUnLoginMainBody(context),
+                  Positioned(
+                    right: ResponsiveUtil.isLandscapeLayout() ? 16 : 12,
+                    bottom: ResponsiveUtil.isLandscapeLayout() ? 16 : 76,
+                    child: ScrollToHide.multi(
+                      controller: _scrollToHideController,
+                      scrollControllers: getScrollControllers(),
+                      hideDirection: Axis.vertical,
+                      child: _buildFloatingButtons(),
+                    ),
+                  ),
+                ],
+              )
+            : LoftifyItemBuilder.buildUnLoginMainBody(context),
+      ),
     );
   }
 
@@ -480,9 +488,9 @@ class FollowTabState extends BaseDynamicState<FollowTab>
     final data = _requireDynamicData(value);
     final rawItems = data['items'];
     
-    // ===== 新增：关注流数据过滤 =====
+    // ===== 核心：数据过滤 =====
     final filteredRawItems = MyContentFilter.filterRawList(rawItems is List ? rawItems : []);
-    // ================================
+    // =========================
 
     final posts = parsePagedDataItems<GrainPostItem>(
       filteredRawItems,

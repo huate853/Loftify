@@ -45,7 +45,7 @@ jobs:
 
       # Add Android keystore
       - name: Setup Android keystore
-        if: matrix.target == 'Android'
+        if: matrix.target == 'Android' && secrets.ENCODED_KEYSTORE != ''
         run: |
           echo "${{ secrets.ENCODED_KEYSTORE }}" | base64 -di > android/app/cloudchewie.jks
           echo "${{ secrets.KEY_PROPERTIES }}" > android/key.properties

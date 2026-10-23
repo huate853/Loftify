@@ -23,6 +23,10 @@ import '../../Widgets/Item/loftify_item_builder.dart';
 import '../../Widgets/PostItem/recommend_flow_item_builder.dart';
 import '../../l10n/l10n.dart';
 import 'collection_detail_screen.dart';
+// ===== 新增引入 =====
+import '../../Utils/content_settings.dart';
+import '../../Utils/my_content_filter.dart';
+// ====================
 
 class _AllSearchMetadata {
   const _AllSearchMetadata({required this.tags, this.tagRank});
@@ -380,9 +384,6 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
       }
       return true;
     }
-    // A tab may have no mounted refresh header yet (notably the initial
-    // comprehensive search). Still fetch its first page instead of leaving
-    // its loading placeholder on screen indefinitely.
     await switch (index) {
       0 => _fetchAllResult(),
       1 => _fetchTagResult(refresh: true),
@@ -413,12 +414,17 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
           );
     final data = _requireSearchData(value);
     final rawPosts = data['posts'];
+    
+    // ===== 数据过滤 =====
+    final filteredRawPosts = MyContentFilter.filterRawList(rawPosts is List ? rawPosts : []);
     final posts = parsePagedDataItems<PostListItem>(
-      rawPosts,
+      filteredRawPosts,
       PostListItem.fromJson,
       onMalformed: (error, stackTrace) =>
           _logMalformedSearchItem('comprehensive post', error, stackTrace),
     );
+    // ====================
+    
     final nextOffset = (data['offset'] as num?)?.toInt() ?? cursor;
     _AllSearchMetadata? metadata;
     if (refresh) {
@@ -449,7 +455,6 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
   }
 
   Future<IndicatorResult> _fetchAllResult() => _allPagingController.refresh();
-
   Future<IndicatorResult> _fetchAllPostResult() => _allPagingController.load();
 
   Future<PagedDataPage<TagInfo, int, TagInfo>> _loadTagResultPage(
@@ -526,9 +531,14 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
     );
     final data = _requireSearchData(value);
     final rawItems = data['posts'];
+    
+    // ===== 数据过滤 =====
+    final filteredRawItems = MyContentFilter.filterRawList(rawItems is List ? rawItems : []);
+    // ====================
+    
     return PagedDataPage(
       items: parsePagedDataItems<SearchPost>(
-        rawItems,
+        filteredRawItems,
         SearchPost.fromJson,
         onMalformed: (error, stackTrace) =>
             _logMalformedSearchItem('post', error, stackTrace),
@@ -888,8 +898,6 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
                           title: chewieLocalizations.loading,
                           indicatorSize: 50,
                           padding: const EdgeInsets.only(bottom: 100),
-                          // The sliver measures intrinsic height and owns
-                          // scrolling; don't nest the adaptive scroll body.
                           scrollWhenConstrained: false,
                           background: ChewieTheme.getBackground(context),
                         )
@@ -1238,7 +1246,6 @@ class _SearchResultScreenState extends BaseDynamicState<SearchResultScreen>
         borderRadius: 8,
         bottomMargin: 18,
         hintFontSizeDelta: 1,
-        // focusNode: _focusNode,
         controller: _searchController,
         hintText: appLocalizations.searchHint,
         onSubmitted: (text) async {

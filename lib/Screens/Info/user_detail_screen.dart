@@ -31,6 +31,9 @@ import '../../Utils/utils.dart';
 import '../../Theme/loftify_design_theme.dart';
 import '../../l10n/l10n.dart';
 import '../Post/collection_detail_screen.dart';
+// ===== 引入全局筛选壳 =====
+import '../../Utils/global_filter_overlay.dart';
+// ========================
 
 class UserDetailScreen extends StatefulWidget {
   const UserDetailScreen({
@@ -184,27 +187,31 @@ class UserDetailScreenState extends BaseDynamicState<UserDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.design.colors.page,
-      resizeToAvoidBottomInset: false,
-      appBar: ResponsiveUtil.isLandscapeLayout()
-          ? ResponsiveAppBar(
-              showBack: true,
-              title: appLocalizations.personalHomepage,
-              onTapBack: widget.onBack,
-            )
-          : null,
-      body: _fullBlogData != null
-          ? ExtendedNestedScrollView(
-              onlyOneScrollInBody: true,
-              headerSliverBuilder: (_, __) => _buildHeaderSlivers(),
-              body: ResponsiveUtil.isLandscapeLayout()
-                  ? LoftifyProfileContentFrame(child: _mainContent())
-                  : _mainContent(),
-            )
-          : LoadingWidget(
-              background: ChewieTheme.getBackground(context),
-            ),
+    // 包裹全站筛选壳子
+    return GlobalFilterWrapper(
+      isTagPage: false,
+      child: Scaffold(
+        backgroundColor: context.design.colors.page,
+        resizeToAvoidBottomInset: false,
+        appBar: ResponsiveUtil.isLandscapeLayout()
+            ? ResponsiveAppBar(
+                showBack: true,
+                title: appLocalizations.personalHomepage,
+                onTapBack: widget.onBack,
+              )
+            : null,
+        body: _fullBlogData != null
+            ? ExtendedNestedScrollView(
+                onlyOneScrollInBody: true,
+                headerSliverBuilder: (_, __) => _buildHeaderSlivers(),
+                body: ResponsiveUtil.isLandscapeLayout()
+                    ? LoftifyProfileContentFrame(child: _mainContent())
+                    : _mainContent(),
+              )
+            : LoadingWidget(
+                background: ChewieTheme.getBackground(context),
+              ),
+      ),
     );
   }
 

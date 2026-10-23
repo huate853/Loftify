@@ -350,11 +350,7 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   void scrollToTop() => unawaited(_scrollHomeToTop());
   void scrollToTopOrRefresh() => unawaited(_refreshFromHomeNavigation());
   @override
-  List<ScrollController> getScrollControllers() {
-    if (!appProvider.shouldHideHomeAppBarOnScroll) return [_scrollController];
-    final inner = _nestedInnerScrollController;
-    return [_nestedScrollController, if (inner != null && !identical(inner, _nestedScrollController)) inner];
-  }
+  List<ScrollController> get ScrollControllers => [];
   @override
   FutureOr onTapBottomNavigation() => _refreshFromHomeNavigation();
 }

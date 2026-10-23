@@ -110,7 +110,7 @@ Widget _buildInvalidPostCard(
 
 class WaterfallFlowPostItemWidget extends StatefulWidget {
   final GeneralPostItem item;
-  final Function(int blogId)? onBlockUser; // 新增回调
+  final Function(int blogId)? onBlockUser;
 
   const WaterfallFlowPostItemWidget({
     super.key,
@@ -494,7 +494,6 @@ class WaterfallFlowPostItemWidgetState
                     ),
                   ),
                 ),
-                // ===== 修改区域：作者名字旁边加 ⊘ =====
                 Expanded(
                   child: GestureDetector(
                     onTap: () {
@@ -521,12 +520,18 @@ class WaterfallFlowPostItemWidgetState
                           GestureDetector(
                             onTap: () async {
                               HapticFeedback.mediumImpact();
-                              final val = await UserApi.blockOrUnBlock(isBlock: true, blogId: item.blogId);
-                              if (val['meta']['status'] == 200) {
-                                // 成功拉黑，通知列表移除
-                                widget.onBlockUser!(item.blogId);
-                              } else {
-                                IToast.showTop(val['meta']['desc'] ?? val['meta']['msg']);
+                              try {
+                                final val = await UserApi.blockOrUnBlock(
+                                    isBlock: true, blogId: item.blogId);
+                                if (val['meta']['status'] == 200) {
+                                  widget.onBlockUser!(item.blogId);
+                                } else {
+                                  IToast.showTop(val['meta']['desc'] ??
+                                      val['meta']['msg'] ??
+                                      "拉黑失败");
+                                }
+                              } catch (e) {
+                                IToast.showTop("网络异常，拉黑失败");
                               }
                             },
                             child: Padding(
@@ -534,7 +539,8 @@ class WaterfallFlowPostItemWidgetState
                               child: Icon(
                                 Icons.block,
                                 size: 14,
-                                color: design.colors.textSecondary.withOpacity(0.5),
+                                color: design.colors.textSecondary
+                                    .withOpacity(0.5),
                               ),
                             ),
                           ),
@@ -542,7 +548,6 @@ class WaterfallFlowPostItemWidgetState
                     ),
                   ),
                 ),
-                // ========================================
                 SizedBox(width: design.spacing.sm),
                 if (item.showLikeButton == true)
                   LoftifyItemBuilder.buildLikedButton(

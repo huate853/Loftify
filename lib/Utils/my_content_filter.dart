@@ -9,7 +9,6 @@ class MyContentFilter {
     final maxLikes = ContentSettings.maxLikes;
     final isKeywordEnabled = ContentSettings.enableKeywords;
     final keywords = ContentSettings.keywords;
-    final hideKeywords = ContentSettings.hideKeywords;
 
     // 如果什么都没开，直接返回
     if (minLikes == 0 && maxLikes >= 999999999 && (!isKeywordEnabled || keywords.isEmpty)) {
@@ -33,58 +32,18 @@ class MyContentFilter {
         return false;
       }
 
-      // 关键词过滤
+      // 关键词过滤：只要命中，整篇文章直接干掉，列表自动往下补全！
       if (isKeywordEnabled && keywords.isNotEmpty) {
         final checkStr = '$title $tags';
-        bool hit = false;
         for (final kw in keywords) {
           if (checkStr.contains(kw)) {
-            hit = true;
-            break;
-          }
-        }
-        if (hit) {
-          if (hideKeywords) {
-            _replaceKeyword(item, keywords, '██');
-            return true; // 保留但打码
-          } else {
-            return false; // 直接干掉
+            return false; // 绝不心慈手软，整篇文章直接扬了，绝不改文字
           }
         }
       }
 
       return true;
     }).toList();
-  }
-
-  static void _replaceKeyword(dynamic map, List<String> keywords, String mask) {
-    if (map is Map) {
-      map.forEach((key, value) {
-        if ((key == 'title' || key == 'noticeLinkTitle') && value is String) {
-          String newStr = value;
-          for (var kw in keywords) {
-            newStr = newStr.replaceAll(kw, mask);
-          }
-          map[key] = newStr;
-        } else if (key == 'tagList' && value is List) {
-          for (int i = 0; i < value.length; i++) {
-            if (value[i] is String) {
-              String newStr = value[i];
-              for (var kw in keywords) {
-                newStr = newStr.replaceAll(kw, mask);
-              }
-              value[i] = newStr;
-            }
-          }
-        } else {
-          _replaceKeyword(value, keywords, mask);
-        }
-      });
-    } else if (map is List) {
-      for (var item in map) {
-        _replaceKeyword(item, keywords, mask);
-      }
-    }
   }
 
   static int _findInt(dynamic map, List<String> keys) {
@@ -123,10 +82,10 @@ class MyContentFilter {
     return '';
   }
 
-  static List<String> _findTags(dynamic map) {
+  static String _findTags(dynamic map) {
     if (map is Map) {
       if (map.containsKey('tagList') && map['tagList'] is List) {
-        return (map['tagList'] as List).map((e) => e.toString()).toList();
+        return (map['tagList'] as List).join(' ');
       }
       for (var val in map.values) {
         final res = _findTags(val);
@@ -138,6 +97,6 @@ class MyContentFilter {
         if (res.isNotEmpty) return res;
       }
     }
-    return [];
+    return '';
   }
 }

@@ -117,22 +117,18 @@ class RecommendFlowItemBuilder {
   static Widget buildWaterfallFlowPostItem(
     BuildContext context,
     PostListItem item, {
-    // final Function(String tag)? onShieldTag,
-    // final Function()? onShieldContent,
-    // final Function()? onShieldUser,
     String? excludeTag,
     bool showMoreButton = false,
+    final Function(int blogId)? onBlockUser, // 新增：拉黑回调
   }) {
     return WaterfallFlowPostItemWidget(
       key: ValueKey(item.postData?.postView.id ?? item.itemId),
       item: getGeneralPostItem(
         item,
         excludeTag: excludeTag,
-        // onShieldTag: onShieldTag,
-        // onShieldContent: onShieldContent,
-        // onShieldUser: onShieldUser,
         showMoreButton: showMoreButton,
       ),
+      onBlockUser: onBlockUser, // 传给卡片
     );
   }
 
@@ -166,7 +162,7 @@ class RecommendFlowItemBuilder {
     return item.grainInfo != null;
   }
 
-  static isInvalid(PostListItem item) {
+  static bool isInvalid(PostListItem item) {
     return item.postData == null;
   }
 

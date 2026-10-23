@@ -97,8 +97,13 @@ class _GlobalFilterWrapperState extends State<GlobalFilterWrapper> {
                     borderRadius: BorderRadius.circular(16),
                     color: Theme.of(context).colorScheme.surface,
                     child: Container(
-                      width: MediaQuery.sizeOf(context).width * 0.85,
-                      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.65),
+                      // 修改点：限制最大宽度，横屏或平板上不再全屏，改用固定宽度
+                      width: MediaQuery.sizeOf(context).width > 500
+                          ? 400
+                          : MediaQuery.sizeOf(context).width * 0.9,
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.sizeOf(context).height * 0.6,
+                      ),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Theme.of(context).dividerColor, width: 0.8),

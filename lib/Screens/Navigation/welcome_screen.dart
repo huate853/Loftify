@@ -1,88 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../Utils/content_settings.dart';
 import '../../Utils/enums.dart';
 
-/// 内容控制台
-Future<void> showContentConsole(BuildContext context) {
+/// ===== 右下角的模块开关操作台 =====
+Future<void> showUiConsole(BuildContext context) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => const ContentConsole(),
+    builder: (_) => const UiConsole(),
   );
 }
 
-class WelcomeScreen extends StatelessWidget {
-  const WelcomeScreen({super.key});
-
-  void _goSearch() {
-    panelScreenState?.jumpToPage(SideBarChoice.Search.index);
-  }
+/// ===== 首页右上角的作品过滤浮框内容 =====
+class FilterConsole extends StatefulWidget {
+  const FilterConsole({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.search, size: 64, color: theme.colorScheme.primary),
-                  const SizedBox(height: 20),
-                  Text(
-                    '欢迎来到老福特',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    '点击下方按钮搜索你感兴趣的标签',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  FilledButton.icon(
-                    onPressed: _goSearch,
-                    icon: const Icon(Icons.search),
-                    label: const Text('开始搜索'),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              top: 8,
-              right: 8,
-              child: IconButton(
-                tooltip: '筛选方式',
-                onPressed: () async {
-                  await showContentConsole(context);
-                  panelScreenState?.initPage();
-                },
-                icon: const Icon(Icons.tune),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  State<FilterConsole> createState() => _FilterConsoleState();
 }
 
-class ContentConsole extends StatefulWidget {
-  const ContentConsole({super.key});
-
-  @override
-  State<ContentConsole> createState() => _ContentConsoleState();
-}
-
-class _ContentConsoleState extends State<ContentConsole> {
+class _FilterConsoleState extends State<FilterConsole> {
   late TextEditingController _minController;
   late TextEditingController _maxController;
   late TextEditingController _keywordController;
@@ -116,7 +55,7 @@ class _ContentConsoleState extends State<ContentConsole> {
     if (text.isNotEmpty && !_keywords.contains(text)) {
       setState(() {
         _keywords.add(text);
-        ContentSettings.keywords = _keywords;
+        ContentSettings.keywords = _keywords; // 立即持久化保存
         _keywordController.clear();
       });
     }
@@ -124,54 +63,28 @@ class _ContentConsoleState extends State<ContentConsole> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: DefaultTabController(
-          length: 3,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const TabBar(
-                tabs: [
-                  Tab(text: "模块开关"),
-                  Tab(text: "热度过滤"),
-                  Tab(text: "屏蔽词"),
-                ],
-              ),
-              SizedBox(
-                height: 400,
-                child: TabBarView(
-                  children: [
-                    _buildModulesTab(),
-                    _buildLikesTab(),
-                    _buildKeywordsTab(),
-                  ],
-                ),
-              ),
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(text: "热度过滤"),
+              Tab(text: "屏蔽词"),
             ],
           ),
-        ),
+          SizedBox(
+            height: 300,
+            child: TabBarView(
+              children: [
+                _buildLikesTab(),
+                _buildKeywordsTab(),
+              ],
+            ),
+          ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildModulesTab() {
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      children: [
-        _sw('主页算法流', ContentSettings.blockHomeFeed, (v) => ContentSettings.blockHomeFeed = v),
-        _sw('右下角悬浮搜索', ContentSettings.showFloatingSearch, (v) => ContentSettings.showFloatingSearch = v),
-        _sw('隐藏「动态」Tab', ContentSettings.hideDynamicTab, (v) => ContentSettings.hideDynamicTab = v),
-        _sw('大家都在搜', ContentSettings.blockEveryoneSearch, (v) => ContentSettings.blockEveryoneSearch = v),
-        _sw('榜单', ContentSettings.blockRank, (v) => ContentSettings.blockRank = v),
-        _sw('评论区', ContentSettings.blockComments, (v) => ContentSettings.blockComments = v),
-        _sw('合集/粮单', ContentSettings.blockCollection, (v) => ContentSettings.blockCollection = v),
-        _sw('相关标签', ContentSettings.blockRelatedTags, (v) => ContentSettings.blockRelatedTags = v),
-        _sw('相关装扮', ContentSettings.blockRelatedDress, (v) => ContentSettings.blockRelatedDress = v),
-        _sw('自动推荐', ContentSettings.blockAutoRecommend, (v) => ContentSettings.blockAutoRecommend = v),
-      ],
     );
   }
 
@@ -183,9 +96,9 @@ class _ContentConsoleState extends State<ContentConsole> {
         children: [
           Row(
             children: [
-              Expanded(child: TextField(controller: _minController, decoration: const InputDecoration(labelText: '最低点赞'), keyboardType: TextInputType.number, onChanged: (_) => _saveLikes())),
+              Expanded(child: TextField(controller: _minController, decoration: const InputDecoration(labelText: '最低点赞', isDense: true), keyboardType: TextInputType.number, onChanged: (_) => _saveLikes())),
               const Padding(padding: EdgeInsets.symmetric(horizontal: 8), child: Text('~')),
-              Expanded(child: TextField(controller: _maxController, decoration: const InputDecoration(labelText: '最高点赞'), keyboardType: TextInputType.number, onChanged: (_) => _saveLikes())),
+              Expanded(child: TextField(controller: _maxController, decoration: const InputDecoration(labelText: '最高点赞', isDense: true), keyboardType: TextInputType.number, onChanged: (_) => _saveLikes())),
             ],
           ),
           const SizedBox(height: 16),
@@ -223,9 +136,16 @@ class _ContentConsoleState extends State<ContentConsole> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sw('启用屏蔽词', ContentSettings.enableKeywords, (v) => ContentSettings.enableKeywords = v),
-          _sw('隐藏屏蔽词 (变成██)', ContentSettings.hideKeywords, (v) => ContentSettings.hideKeywords = v),
-          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("启用屏蔽词", style: TextStyle(fontWeight: FontWeight.bold)),
+              Switch(
+                value: ContentSettings.enableKeywords,
+                onChanged: (v) => setState(() => ContentSettings.enableKeywords = v),
+              ),
+            ],
+          ),
           Row(
             children: [
               Expanded(
@@ -257,6 +177,92 @@ class _ContentConsoleState extends State<ContentConsole> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class WelcomeScreen extends StatelessWidget {
+  const WelcomeScreen({super.key});
+
+  void _goSearch() {
+    panelScreenState?.jumpToPage(SideBarChoice.Search.index);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.search, size: 64, color: theme.colorScheme.primary),
+                  const SizedBox(height: 20),
+                  Text(
+                    '欢迎来到老福特',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '点击左侧搜索你感兴趣的标签',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ===== 右下角的 UI 控制台 =====
+class UiConsole extends StatefulWidget {
+  const UiConsole({super.key});
+
+  @override
+  State<UiConsole> createState() => _UiConsoleState();
+}
+
+class _UiConsoleState extends State<UiConsole> {
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('模块屏蔽', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  _sw('主页算法流', ContentSettings.blockHomeFeed, (v) => ContentSettings.blockHomeFeed = v),
+                  _sw('隐藏「动态」Tab', ContentSettings.hideDynamicTab, (v) => ContentSettings.hideDynamicTab = v),
+                  _sw('大家都在搜', ContentSettings.blockEveryoneSearch, (v) => ContentSettings.blockEveryoneSearch = v),
+                  _sw('榜单', ContentSettings.blockRank, (v) => ContentSettings.blockRank = v),
+                  _sw('评论区', ContentSettings.blockComments, (v) => ContentSettings.blockComments = v),
+                  _sw('合集/粮单', ContentSettings.blockCollection, (v) => ContentSettings.blockCollection = v),
+                  _sw('相关标签', ContentSettings.blockRelatedTags, (v) => ContentSettings.blockRelatedTags = v),
+                  _sw('相关装扮', ContentSettings.blockRelatedDress, (v) => ContentSettings.blockRelatedDress = v),
+                  _sw('自动推荐', ContentSettings.blockAutoRecommend, (v) => ContentSettings.blockAutoRecommend = v),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

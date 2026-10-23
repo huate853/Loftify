@@ -56,7 +56,7 @@ import '../Info/user_detail_screen.dart';
 import 'grain_detail_screen.dart';
 // ===== 新增引入 =====
 import '../../Utils/content_settings.dart';
-import '../../Utils/post_filter_util.dart';
+import '../../Utils/my_content_filter.dart';
 // ====================
 
 class PostDetailScreen extends StatefulWidget {
@@ -875,7 +875,7 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
           List<dynamic> tmp = value['data']['list'];
           
           // ===== 核心：在这里拦截点赞和屏蔽词 =====
-          tmp = PostFilterUtil.filterRawList(tmp);
+          tmp = MyContentFilter.filterRawList(tmp);
           // ============================================
 
           if (append == false) _recommendPosts.clear();
@@ -1320,16 +1320,13 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
           PostContentSliver(
             children: _buildCommonContent(false),
           ),
-          // ===== 核心：手机端不显示底部推荐流 =====
           if (!ContentSettings.blockAutoRecommend) _buildRecommendFlow(),
-          // ============================================
         ],
       ),
     );
   }
 
   _buildTabletMainBody() {
-    // ===== 核心：平板端如果屏蔽了推荐流，直接铺满全屏，不给右侧留空 =====
     if (ContentSettings.blockAutoRecommend) {
       return EasyRefresh.builder(
         key: _postBodyPaneKey,
@@ -1348,7 +1345,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
         ),
       );
     }
-    // ==================================================================
     return LayoutBuilder(
         builder: (context, constraints) => ResizableContainer(
               direction: Axis.horizontal,
@@ -1651,7 +1647,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
           child: _buildEggContent(),
         ),
       ),
-      // ===== 核心：控制合集和粮单显示 =====
       if (!ContentSettings.blockCollection) ...[
         if (hasCollection())
           _buildReadingRail(
@@ -1660,9 +1655,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
         if (hasGrain())
           _buildReadingRail(_buildGrainItem(key: _grainViewportKey)),
       ],
-      // ====================================
-
-      // ===== 核心：控制相关标签显示 =====
       if (!ContentSettings.blockRelatedTags)
         _buildReadingRail(
           GestureDetector(
@@ -1672,8 +1664,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             child: _buildTagList(),
           ),
         ),
-      // ==================================
-
       _buildReadingRail(_buildMarkInfo()),
       _buildReadingRail(
         Column(
@@ -1684,8 +1674,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
           ],
         ),
       ),
-
-      // ===== 核心：控制评论区显示 =====
       if (!ContentSettings.blockComments) ...[
         _buildReadingRail(
           Container(
@@ -1752,9 +1740,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             ),
           ),
       ],
-      // ==================================
-
-      // ===== 核心：控制更多推荐标题显示 =====
       if (!isTablet && !ContentSettings.blockAutoRecommend)
         _buildReadingRail(
           ItemBuilder.buildTitle(
@@ -1764,7 +1749,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             topMargin: 24,
           ),
         ),
-      // ======================================
     ];
   }
 
@@ -2752,7 +2736,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             ),
             onTap: _handleRecommend,
           ),
-          // ===== 核心：如果屏蔽了评论区，隐藏底部的评论按钮 =====
           if (!ContentSettings.blockComments) ...[
             const SizedBox(width: 8),
             DetailActionButton(
@@ -2765,7 +2748,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
               onTap: jumpToComment,
             ),
           ],
-          // ======================================================
           const Spacer(),
           DetailActionButton(
             label: _postDetailData!.subscribedNotNull
@@ -2856,7 +2838,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             selected: _postDetailData!.shared == true,
           ),
         ),
-        // ===== 核心：悬浮操作栏也隐藏评论按钮 =====
         if (!ContentSettings.blockComments)
           DetailActionButton(
             label: _postDetailData!.post!.postCount!.responseCount > 0
@@ -2867,7 +2848,6 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
             icon: const ChewieIcon(LoftifyIcons.comment),
             onTap: jumpToComment,
           ),
-        // ============================================
         DetailActionButton(
           label: _postDetailData!.subscribedNotNull
               ? appLocalizations.favorited

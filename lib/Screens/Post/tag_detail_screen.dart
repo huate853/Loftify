@@ -29,11 +29,11 @@ import '../../Widgets/PostItem/recommend_flow_item_builder.dart';
 import '../../Widgets/Tag/tag_detail_components.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../l10n/l10n.dart';
-// ===== 新增引入 =====
+// ===== 引入全局筛选与过滤 =====
 import '../../Utils/content_settings.dart';
 import '../../Utils/my_content_filter.dart';
-import '../../Api/user_api.dart';
-// ====================
+import '../../Utils/global_filter_overlay.dart';
+// ============================
 
 class TagDetailScreen extends StatefulWidget {
   const TagDetailScreen({super.key, required this.tag});
@@ -145,16 +145,39 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
     );
   }
 
+  // ===== 筛选条件改变后的回调 =====
+  void _onFilterChanged() {
+    int year = ContentSettings.tagSelectedYear;
+    int month = ContentSettings.tagSelectedMonth;
+    if (year > 0 && month > 0) {
+      // 如果选了年月，强制切到“最热”Tab
+      if (_currentTabIndex != 2) {
+        _tabController.animateTo(2);
+        _setCurrentTab(2);
+      }
+      _refreshTabData(2);
+    } else {
+      _refreshTabData(_currentTabIndex);
+    }
+  }
+  // ==============================
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final design = context.design;
-    return Scaffold(
-      appBar: _buildAppBar(),
-      backgroundColor: design.colors.page,
-      body: _tagDetailData != null
-          ? _buildMainBody()
-          : LoadingWidget(background: design.colors.page),
+
+    // 套上全局筛选壳子，并且开启年月筛选
+    return GlobalFilterWrapper(
+      isTagPage: true,
+      onFilterChanged: _onFilterChanged,
+      child: Scaffold(
+        appBar: _buildAppBar(),
+        backgroundColor: design.colors.page,
+        body: _tagDetailData != null
+            ? _buildMainBody()
+            : LoadingWidget(background: design.colors.page),
+      ),
     );
   }
 
@@ -828,6 +851,7 @@ Widget _buildTagPostGrid(
   required ScrollController? controller,
   required ScrollPhysics physics,
   required List<PostListItem> posts,
+  Function(int)? onBlockUser,
 }) {
   final design = context.design;
   return LayoutBuilder(
@@ -910,7 +934,6 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
     super.dispose();
   }
 
-  // ===== 拉黑回调 =====
   void _handleBlockUser(int blogId) {
     _recommendList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
     if (mounted) {
@@ -918,7 +941,6 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
       IToast.showTop("已拉黑");
     }
   }
-  // ====================
 
   Future<IndicatorResult> _fetchRecommendResult({bool refresh = false}) async {
     if (_recommendResultLoading || (!refresh && _recommendNoMore)) {
@@ -940,11 +962,10 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
             _recommendResultOffset = value['data']['offset'];
             if (refresh) _recommendList.clear();
             
-            // ===== 数据过滤 =====
+            // 过滤逻辑
             final rawList = value['data']['list'] as List;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
             newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
-            // ====================
 
             newPosts.removeWhere((e) =>
                 _recommendList.any((element) => element.itemId == e.itemId));
@@ -1005,7 +1026,7 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
                   context,
                   _recommendList[index],
                   excludeTag: widget.tag,
-                  onBlockUser: _handleBlockUser, // 传入拉黑
+                  onBlockUser: _handleBlockUser,
                 );
               },
               itemCount: _recommendList.length,
@@ -1081,7 +1102,6 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     super.dispose();
   }
 
-  // ===== 拉黑回调 =====
   void _handleBlockUser(int blogId) {
     _hottestList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
     if (mounted) {
@@ -1089,7 +1109,6 @@ class HottestTabState extends BaseDynamicState<HottestTab>
       IToast.showTop("已拉黑");
     }
   }
-  // ====================
 
   Future<IndicatorResult> _fetchHottestResult({bool refresh = false}) async {
     if (_hottestResultLoading || (!refresh && _hottestNoMore)) {
@@ -1097,8 +1116,25 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     }
     if (refresh) _hottestNoMore = false;
     _hottestResultLoading = true;
+    
+    // ===== 核心：年月筛选覆盖逻辑 =====
+    final year = ContentSettings.tagSelectedYear;
+    final month = ContentSettings.tagSelectedMonth;
+    String postYm = "";
+    TagPostResultType finalResultType = _hottestParams!.tagPostResultType;
+
+    if (year > 0 && month > 0) {
+      postYm = "$year-${month.toString().padLeft(2, '0')}";
+      // 强制覆盖为 total（全部），因为特定年月的日榜/周榜没有意义
+      finalResultType = TagPostResultType.total;
+    }
+
     return await TagApi.getPostList(
-      _hottestParams!.copyWith(offset: refresh ? 0 : _hottestResultOffset),
+      _hottestParams!.copyWith(
+        offset: refresh ? 0 : _hottestResultOffset,
+        tagPostResultType: finalResultType,
+        postYm: postYm,
+      ),
     ).then<IndicatorResult>((value) {
       try {
         if (value['code'] != 0) {
@@ -1110,11 +1146,10 @@ class HottestTabState extends BaseDynamicState<HottestTab>
             _hottestResultOffset = value['data']['offset'];
             if (refresh) _hottestList.clear();
             
-            // ===== 数据过滤 =====
+            // 过滤逻辑
             final rawList = value['data']['list'] as List;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
             newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
-            // ====================
 
             newPosts.removeWhere((e) =>
                 _hottestList.any((element) => element.itemId == e.itemId));
@@ -1175,7 +1210,7 @@ class HottestTabState extends BaseDynamicState<HottestTab>
                   context,
                   _hottestList[index],
                   excludeTag: widget.tag,
-                  onBlockUser: _handleBlockUser, // 传入拉黑
+                  onBlockUser: _handleBlockUser,
                 );
               },
               itemCount: _hottestList.length,
@@ -1250,7 +1285,6 @@ class NewestTabState extends BaseDynamicState<NewestTab>
     super.dispose();
   }
 
-  // ===== 拉黑回调 =====
   void _handleBlockUser(int blogId) {
     _newestList.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
     if (mounted) {
@@ -1258,7 +1292,6 @@ class NewestTabState extends BaseDynamicState<NewestTab>
       IToast.showTop("已拉黑");
     }
   }
-  // ====================
 
   Future<IndicatorResult> _fetchNewestResult({bool refresh = false}) async {
     if (_newestResultLoading || (!refresh && _newestNoMore)) {
@@ -1280,11 +1313,10 @@ class NewestTabState extends BaseDynamicState<NewestTab>
             _newestResultOffset = value['data']['offset'];
             if (refresh) _newestList.clear();
             
-            // ===== 数据过滤 =====
+            // 过滤逻辑
             final rawList = value['data']['list'] as List;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
             newPosts = filteredRawList.map((e) => PostListItem.fromJson(e)).toList();
-            // ====================
 
             newPosts.removeWhere((e) =>
                 _newestList.any((element) => element.itemId == e.itemId));
@@ -1346,7 +1378,7 @@ class NewestTabState extends BaseDynamicState<NewestTab>
                   context,
                   _newestList[index],
                   excludeTag: widget.tag,
-                  onBlockUser: _handleBlockUser, // 传入拉黑
+                  onBlockUser: _handleBlockUser,
                 );
               },
               itemCount: _newestList.length,

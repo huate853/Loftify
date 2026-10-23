@@ -516,33 +516,38 @@ class WaterfallFlowPostItemWidgetState
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        // ===== 修复：用 SizedBox 固定宽度，防止在瀑布流里被挤没 =====
                         if (widget.onBlockUser != null)
-                          GestureDetector(
-                            onTap: () async {
-                              HapticFeedback.mediumImpact();
-                              // ===== 修复：使用原版方式的 .then 链式调用，不用 try-catch 防止误报异常 =====
-                              UserApi.blockOrUnBlock(
-                                isBlock: true,
-                                blogId: item.blogId,
-                              ).then((val) {
-                                if (val != null && val['meta'] != null && val['meta']['status'] == 200) {
-                                  widget.onBlockUser!(item.blogId);
-                                } else {
-                                  IToast.showTop(val?['meta']?['desc'] ??
-                                      val?['meta']?['msg'] ??
-                                      "拉黑失败");
-                                }
-                              }).catchError((e) {
-                                IToast.showTop("网络异常，拉黑失败");
-                              });
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.only(left: 4, right: 4),
+                          SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: GestureDetector(
+                              onTap: () {
+                                HapticFeedback.mediumImpact();
+                                // 修复：使用 then 和 catchError 分开，避免 UI 报错被当作网络错误
+                                UserApi.blockOrUnBlock(
+                                  isBlock: true,
+                                  blogId: item.blogId,
+                                ).then((val) {
+                                  if (val != null && val['meta'] != null && val['meta']['status'] == 200) {
+                                    try {
+                                      widget.onBlockUser!(item.blogId);
+                                    } catch (e) {
+                                      // 忽略 UI 刷新时的局部异常，确保用户感知为成功
+                                    }
+                                  } else {
+                                    IToast.showTop(val?['meta']?['desc'] ??
+                                        val?['meta']?['msg'] ??
+                                        "拉黑失败");
+                                  }
+                                }).catchError((e) {
+                                  IToast.showTop("网络异常，拉黑失败");
+                                });
+                              },
                               child: Icon(
                                 Icons.block,
                                 size: 14,
-                                color: design.colors.textSecondary
-                                    .withOpacity(0.5),
+                                color: design.colors.textSecondary.withOpacity(0.5),
                               ),
                             ),
                           ),

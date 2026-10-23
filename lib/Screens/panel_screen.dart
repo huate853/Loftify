@@ -32,7 +32,7 @@ import '../Widgets/loftify_icons.dart';
 import '../l10n/l10n.dart';
 import 'Navigation/home_screen.dart';
 import 'Navigation/search_screen.dart';
-import 'Navigation/welcome_screen.dart'; // 确保引入
+import 'Navigation/welcome_screen.dart';
 
 class PanelBackScope extends StatelessWidget {
   const PanelBackScope({
@@ -389,21 +389,26 @@ class PanelScreenState extends BasePanelScreenState<PanelScreen>
           ),
         ),
         // ===== 核心：全局悬浮操作台按钮 =====
-        if (ContentSettings.showFloatingSearch)
-          Positioned(
-            right: 16,
-            bottom: MediaQuery.of(context).padding.bottom + 90,
-            child: FloatingActionButton.small(
-              heroTag: 'lf_floating_console',
-              onPressed: () async {
-                // 呼出模块开关
-                await showUiConsole(context);
-                // 关闭操作台后，刷新当前页面，让开关立即生效
-                initPage();
-              },
-              child: const Icon(Icons.tune), 
-            ),
-          ),
+        Selector<AppProvider, bool>(
+          selector: (context, provider) => provider.showPanelNavigator,
+          builder: (context, showPanelNavigator, child) {
+            if (showPanelNavigator || !ContentSettings.showFloatingSearch) {
+              return const SizedBox.shrink();
+            }
+            return Positioned(
+              right: 16,
+              bottom: MediaQuery.of(context).padding.bottom + 90,
+              child: FloatingActionButton.small(
+                heroTag: 'lf_floating_console',
+                onPressed: () async {
+                  await showUiConsole(context);
+                  initPage();
+                },
+                child: const Icon(Icons.tune),
+              ),
+            );
+          },
+        ),
         // =====================================
       ],
     );

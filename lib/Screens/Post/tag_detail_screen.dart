@@ -676,7 +676,6 @@ class RecommendTabState extends BaseDynamicState<RecommendTab> with AutomaticKee
     super.dispose();
   }
 
-  // 修改点：改成删除单篇作品
   void _handleBlockUser(int blogId, int postId) {
     _recommendList.removeWhere((item) => (item.blogInfo?.blogId == blogId && (item.postData?.postView.id ?? item.itemId) == postId) || item.itemId == postId);
     if (mounted) setState(() {});
@@ -817,7 +816,6 @@ class HottestTabState extends BaseDynamicState<HottestTab> with AutomaticKeepAli
     super.dispose();
   }
 
-  // 修改点：改成删除单篇作品
   void _handleBlockUser(int blogId, int postId) {
     _hottestList.removeWhere((item) => (item.blogInfo?.blogId == blogId && (item.postData?.postView.id ?? item.itemId) == postId) || item.itemId == postId);
     if (mounted) setState(() {});
@@ -830,10 +828,13 @@ class HottestTabState extends BaseDynamicState<HottestTab> with AutomaticKeepAli
 
     final String postYm = _hottestParams!.postYm;
     TagPostResultType finalResultType = _hottestParams!.tagPostResultType;
-    if (postYm.isNotEmpty) finalResultType = TagPostResultType.total;
+    if (postYm.isNotEmpty) {
+      finalResultType = TagPostResultType.total;
+    }
 
     return await TagApi.getPostList(_hottestParams!.copyWith(
-      offset: postYm.isNotEmpty ? 0 : (refresh ? 0 : _hottestResultOffset),
+      // 修复：去掉了强制 offset=0，翻页时正常递增
+      offset: refresh ? 0 : _hottestResultOffset,
       tagPostResultType: finalResultType,
       postYm: postYm,
     )).then<IndicatorResult>((value) {
@@ -858,6 +859,8 @@ class HottestTabState extends BaseDynamicState<HottestTab> with AutomaticKeepAli
             _hottestList.removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
+          
+          // 修复：只以服务器原始列表是否为空来判断是否到底
           _hottestNoMore = rawListIsEmpty;
           return _hottestNoMore && !refresh ? IndicatorResult.noMore : IndicatorResult.success;
         }
@@ -957,7 +960,6 @@ class NewestTabState extends BaseDynamicState<NewestTab> with AutomaticKeepAlive
     super.dispose();
   }
 
-  // 修改点：改成删除单篇作品
   void _handleBlockUser(int blogId, int postId) {
     _newestList.removeWhere((item) => (item.blogInfo?.blogId == blogId && (item.postData?.postView.id ?? item.itemId) == postId) || item.itemId == postId);
     if (mounted) setState(() {});
@@ -990,6 +992,8 @@ class NewestTabState extends BaseDynamicState<NewestTab> with AutomaticKeepAlive
             _newestList.removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
+          
+          // 修复：只以服务器原始列表是否为空来判断是否到底
           _newestNoMore = rawListIsEmpty;
           return _newestNoMore && !refresh ? IndicatorResult.noMore : IndicatorResult.success;
         }

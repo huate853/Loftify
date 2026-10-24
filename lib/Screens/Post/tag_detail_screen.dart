@@ -29,17 +29,13 @@ import '../../Widgets/PostItem/recommend_flow_item_builder.dart';
 import '../../Widgets/Tag/tag_detail_components.dart';
 import '../../Widgets/loftify_icons.dart';
 import '../../l10n/l10n.dart';
-// ===== 引入全局筛选与过滤 =====
 import '../../Utils/content_settings.dart';
 import '../../Utils/my_content_filter.dart';
 import '../../Utils/global_filter_overlay.dart';
-// ============================
 
 class TagDetailScreen extends StatefulWidget {
   const TagDetailScreen({super.key, required this.tag});
-
   static const String routeName = "/tag/detail";
-
   final String tag;
 
   @override
@@ -58,19 +54,11 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   final GlobalKey<RecommendTabState> _recommendKey = GlobalKey();
   final GlobalKey<NewestTabState> _newestKey = GlobalKey();
   final GlobalKey<HottestTabState> _hottestKey = GlobalKey();
-  final List<SubordinateScrollController?> _tabScrollControllers =
-      List<SubordinateScrollController?>.filled(3, null);
-  PostLayoutType _postLayoutType = PostLayoutType.values[ChewieUtils.patchEnum(
-      ChewieHiveUtil.getInt(HiveUtil.tagDetailPostLayoutTypeKey,
-          defaultValue: 0),
-      PostLayoutType.values.length)];
+  final List<SubordinateScrollController?> _tabScrollControllers = List<SubordinateScrollController?>.filled(3, null);
+  PostLayoutType _postLayoutType = PostLayoutType.values[ChewieUtils.patchEnum(ChewieHiveUtil.getInt(HiveUtil.tagDetailPostLayoutTypeKey, defaultValue: 0), PostLayoutType.values.length)];
 
   int _currentTabIndex = 0;
-  final List<String> _tabLabelList = [
-    appLocalizations.explore,
-    appLocalizations.newest,
-    appLocalizations.hottest
-  ];
+  final List<String> _tabLabelList = [appLocalizations.explore, appLocalizations.newest, appLocalizations.hottest];
   static const List<String> _tabIdList = ['explore', 'newest', 'hottest'];
 
   late GetTagPostListParams _hottestParams;
@@ -97,10 +85,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   }
 
   void initFilter() {
-    _hottestParams = _restoreFilter(
-      HiveUtil.tagHottestFilterKey,
-      fallbackResultType: TagPostResultType.week,
-    );
+    _hottestParams = _restoreFilter(HiveUtil.tagHottestFilterKey, fallbackResultType: TagPostResultType.week);
     _currentHottestIndex = switch (_hottestParams.tagPostResultType) {
       TagPostResultType.total => 0,
       TagPostResultType.date => 1,
@@ -108,20 +93,14 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
       TagPostResultType.month => 3,
       _ => 2,
     };
-    _newestParams = _restoreFilter(
-      HiveUtil.tagNewestFilterKey,
-      fallbackResultType: TagPostResultType.newPost,
-    );
+    _newestParams = _restoreFilter(HiveUtil.tagNewestFilterKey, fallbackResultType: TagPostResultType.newPost);
     _currentNewestIndex = switch (_newestParams.tagPostResultType) {
       TagPostResultType.newComment => 1,
       _ => 0,
     };
   }
 
-  GetTagPostListParams _restoreFilter(
-    String key, {
-    required TagPostResultType fallbackResultType,
-  }) {
+  GetTagPostListParams _restoreFilter(String key, {required TagPostResultType fallbackResultType}) {
     dynamic savedValue;
     final encoded = ChewieHiveUtil.getString(key);
     if (encoded != null && encoded.isNotEmpty) {
@@ -131,33 +110,23 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
         ILogger.error("Failed to restore tag filter", error, stackTrace);
       }
     }
-    return GetTagPostListParams.fromPreference(
-      tag: widget.tag,
-      value: savedValue,
-      fallbackResultType: fallbackResultType,
-    );
+    return GetTagPostListParams.fromPreference(tag: widget.tag, value: savedValue, fallbackResultType: fallbackResultType);
   }
 
   void _persistFilter(String key, GetTagPostListParams params) {
-    ChewieHiveUtil.put(
-      key,
-      jsonEncode(params.toPreferenceJson()),
-    );
+    ChewieHiveUtil.put(key, jsonEncode(params.toPreferenceJson()));
   }
 
-  // ===== 筛选条件改变后的回调 =====
   void _onFilterChanged() {
     final year = ContentSettings.tagSelectedYear;
     final month = ContentSettings.tagSelectedMonth;
     
     if (year > 0 && month > 0) {
-      // 核心修复：格式化为 YYYYMM（例如 202403）
       final ym = "$year${month.toString().padLeft(2, '0')}";
-      
       _currentHottestIndex = 0;
       _hottestParams = _hottestParams.copyWith(
         tagPostResultType: TagPostResultType.total,
-        postYm: ym, // 传入官方要求的 YYYYMM
+        postYm: ym,
       );
       _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
 
@@ -165,23 +134,19 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
         _tabController.animateTo(2);
         _setCurrentTab(2);
       }
-      // 直接发请求，强制刷新
       _hottestKey.currentState?.forceApplyParams(_hottestParams);
     } else {
-      // 清除时间
       _hottestParams = _hottestParams.copyWith(postYm: "");
       _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
       _hottestKey.currentState?.forceApplyParams(_hottestParams);
     }
   }
-  // ==============================
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
     final design = context.design;
 
-    // 套上全局筛选壳子，并且开启年月筛选
     return GlobalFilterWrapper(
       isTagPage: true,
       onFilterChanged: _onFilterChanged,
@@ -196,21 +161,10 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   }
 
   void initTab() {
-    final restored = PersistentTabState.restore(
-      idKey: HiveUtil.tagDetailTabIdKey,
-      legacyIndexKey: HiveUtil.tagDetailTabIndexKey,
-      itemIds: _tabIdList,
-    );
-    _tabLoadState = LazyTabLoadState(
-      itemIds: _tabIdList,
-      savedId: restored.id,
-    );
+    final restored = PersistentTabState.restore(idKey: HiveUtil.tagDetailTabIdKey, legacyIndexKey: HiveUtil.tagDetailTabIndexKey, itemIds: _tabIdList);
+    _tabLoadState = LazyTabLoadState(itemIds: _tabIdList, savedId: restored.id);
     _currentTabIndex = _tabLoadState.currentIndex;
-    _tabController = TabController(
-      length: _tabLabelList.length,
-      initialIndex: _currentTabIndex,
-      vsync: this,
-    );
+    _tabController = TabController(length: _tabLabelList.length, initialIndex: _currentTabIndex, vsync: this);
     _tabController.addListener(() {
       final preloadIndex = _tabController.indexIsChanging
           ? _tabController.index
@@ -222,26 +176,17 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
       if (preloadIndex >= 0 && preloadIndex < _tabLabelList.length) {
         unawaited(_ensureTabLoaded(preloadIndex));
       }
-      final index =
-          (_tabController.animation?.value ?? _tabController.index).round();
+      final index = (_tabController.animation?.value ?? _tabController.index).round();
       if (index != _currentTabIndex) _setCurrentTab(index);
     });
   }
 
   void _setCurrentTab(int index) {
-    final safeIndex = TabStatePreference.restoreIndex(
-      index,
-      _tabLabelList.length,
-    );
+    final safeIndex = TabStatePreference.restoreIndex(index, _tabLabelList.length);
     if (safeIndex != _currentTabIndex) {
       setState(() => _currentTabIndex = safeIndex);
     }
-    PersistentTabState.save(
-      idKey: HiveUtil.tagDetailTabIdKey,
-      legacyIndexKey: HiveUtil.tagDetailTabIndexKey,
-      itemIds: _tabIdList,
-      index: safeIndex,
-    );
+    PersistentTabState.save(idKey: HiveUtil.tagDetailTabIdKey, legacyIndexKey: HiveUtil.tagDetailTabIndexKey, itemIds: _tabIdList, index: safeIndex);
     _ensureTabLoaded(safeIndex);
   }
 
@@ -257,8 +202,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
     for (var attempt = 0; attempt < 60; attempt++) {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return false;
-      final tabPosition =
-          _tabController.animation?.value ?? _tabController.index.toDouble();
+      final tabPosition = _tabController.animation?.value ?? _tabController.index.toDouble();
       if ((tabPosition - index).abs() > 0.01) continue;
       switch (index) {
         case 0:
@@ -336,33 +280,20 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
         subscribeLabel: appLocalizations.subscribe,
         subscribedLabel: appLocalizations.subscribed,
         metrics: [
-          if (data.tagRanksNew.isNotEmpty &&
-              StringUtil.isNotEmpty(data.tagRanksNew.first.name))
-            LoftifyTagMetric(
-              data.tagRanksNew.first.name ?? '',
-              emphasized: true,
-            ),
-          LoftifyTagMetric(
-            '${StringUtil.formatCount(data.tagViewCount)}${appLocalizations.viewCount}',
-          ),
-          LoftifyTagMetric(
-            '${StringUtil.formatCount(data.postAllCount)}${appLocalizations.participateCount}',
-          ),
+          if (data.tagRanksNew.isNotEmpty && StringUtil.isNotEmpty(data.tagRanksNew.first.name))
+            LoftifyTagMetric(data.tagRanksNew.first.name ?? '', emphasized: true),
+          LoftifyTagMetric('${StringUtil.formatCount(data.tagViewCount)}${appLocalizations.viewCount}'),
+          LoftifyTagMetric('${StringUtil.formatCount(data.postAllCount)}${appLocalizations.participateCount}'),
         ],
         onSubscriptionPressed: _toggleSubscription,
-        trailing:
-            ResponsiveUtil.isLandscapeLayout() ? _buildButtons(true) : const [],
+        trailing: ResponsiveUtil.isLandscapeLayout() ? _buildButtons(true) : const [],
       ),
     );
   }
 
   void _toggleSubscription() {
     HapticFeedback.mediumImpact();
-    TagApi.subscribeOrUnSubscribe(
-      tag: widget.tag,
-      isSubscribe: !_tagDetailData!.favorited,
-      id: NumberUtil.parseToInt(_tagDetailData!.favoritedTagId),
-    ).then((value) {
+    TagApi.subscribeOrUnSubscribe(tag: widget.tag, isSubscribe: !_tagDetailData!.favorited, id: NumberUtil.parseToInt(_tagDetailData!.favoritedTagId)).then((value) {
       if (value['meta']['status'] != 200) {
         IToast.showTop(value['meta']['desc'] ?? value['meta']['msg']);
       } else {
@@ -372,25 +303,15 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
     });
   }
 
-  Widget _buildContentFrame(
-    Widget child, {
-    double top = 0,
-    double bottom = 0,
-  }) {
+  Widget _buildContentFrame(Widget child, {double top = 0, double bottom = 0}) {
     final design = context.design;
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final centeredInset = ((width - design.grid.maximumContentWidth) / 2)
-            .clamp(0.0, double.infinity);
+        final centeredInset = ((width - design.grid.maximumContentWidth) / 2).clamp(0.0, double.infinity);
         final pageInset = design.grid.pagePaddingFor(width);
         return Padding(
-          padding: EdgeInsets.only(
-            left: centeredInset + pageInset,
-            right: centeredInset + pageInset,
-            top: top,
-            bottom: bottom,
-          ),
+          padding: EdgeInsets.only(left: centeredInset + pageInset, right: centeredInset + pageInset, top: top, bottom: bottom),
           child: child,
         );
       },
@@ -399,8 +320,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
 
   double _contentInsetFor(double width) {
     final design = context.design;
-    final centeredInset = ((width - design.grid.maximumContentWidth) / 2)
-        .clamp(0.0, double.infinity);
+    final centeredInset = ((width - design.grid.maximumContentWidth) / 2).clamp(0.0, double.infinity);
     return centeredInset + design.grid.pagePaddingFor(width);
   }
 
@@ -411,23 +331,17 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
       tabBarPadding: EdgeInsets.zero,
       labelPadding: EdgeInsets.zero,
       background: design.colors.page,
-      tabs: _tabLabelList
-          .asMap()
-          .entries
-          .map((entry) => ItemBuilder.buildAnimatedTab(
-                context,
-                selected: entry.key == _currentTabIndex,
-                text: entry.value,
-                controller: _tabController,
-                tabIndex: entry.key,
-                sameFontSize: true,
-                fontSizeDelta: -1,
-              ))
-          .toList(),
+      tabs: _tabLabelList.asMap().entries.map((entry) => ItemBuilder.buildAnimatedTab(
+        context,
+        selected: entry.key == _currentTabIndex,
+        text: entry.value,
+        controller: _tabController,
+        tabIndex: entry.key,
+        sameFontSize: true,
+        fontSizeDelta: -1,
+      )).toList(),
       onTap: (index) {
-        if (_currentTabIndex == index) {
-          _refreshTabData(index);
-        }
+        if (_currentTabIndex == index) _refreshTabData(index);
         _setCurrentTab(index);
       },
     );
@@ -437,17 +351,9 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
       delegate: SliverAppBarDelegate(
         radius: 0,
         background: design.colors.page,
-        tabBar: PreferredSize(
-          preferredSize: tabBar.preferredSize,
-          child: _buildContentFrame(tabBar),
-        ),
+        tabBar: PreferredSize(preferredSize: tabBar.preferredSize, child: _buildContentFrame(tabBar)),
       ),
     );
-  }
-
-  void scrollToTop() {
-    _scrollController.animateTo(0,
-        duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
   }
 
   Widget _buildTabView() {
@@ -458,45 +364,25 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
           final parentController = PrimaryScrollController.of(context);
           if (_tabScrollControllers[0]?.parent != parentController) {
             _tabScrollControllers[0]?.dispose();
-            _tabScrollControllers[0] =
-                SubordinateScrollController(parentController);
+            _tabScrollControllers[0] = SubordinateScrollController(parentController);
           }
-          return RecommendTab(
-            key: _recommendKey,
-            tag: widget.tag,
-            scrollController: _tabScrollControllers[0],
-            postLayoutType: _postLayoutType,
-          );
+          return RecommendTab(key: _recommendKey, tag: widget.tag, scrollController: _tabScrollControllers[0], postLayoutType: _postLayoutType);
         }),
         Builder(builder: (context) {
           final parentController = PrimaryScrollController.of(context);
           if (_tabScrollControllers[1]?.parent != parentController) {
             _tabScrollControllers[1]?.dispose();
-            _tabScrollControllers[1] =
-                SubordinateScrollController(parentController);
+            _tabScrollControllers[1] = SubordinateScrollController(parentController);
           }
-          return NewestTab(
-            key: _newestKey,
-            tag: widget.tag,
-            scrollController: _tabScrollControllers[1],
-            postLayoutType: _postLayoutType,
-            initialParams: _newestParams,
-          );
+          return NewestTab(key: _newestKey, tag: widget.tag, scrollController: _tabScrollControllers[1], postLayoutType: _postLayoutType, initialParams: _newestParams);
         }),
         Builder(builder: (context) {
           final parentController = PrimaryScrollController.of(context);
           if (_tabScrollControllers[2]?.parent != parentController) {
             _tabScrollControllers[2]?.dispose();
-            _tabScrollControllers[2] =
-                SubordinateScrollController(parentController);
+            _tabScrollControllers[2] = SubordinateScrollController(parentController);
           }
-          return HottestTab(
-            key: _hottestKey,
-            tag: widget.tag,
-            scrollController: _tabScrollControllers[2],
-            postLayoutType: _postLayoutType,
-            initialParams: _hottestParams,
-          );
+          return HottestTab(key: _hottestKey, tag: widget.tag, scrollController: _tabScrollControllers[2], postLayoutType: _postLayoutType, initialParams: _hottestParams);
         }),
       ],
     );
@@ -505,12 +391,9 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   Widget _buildEntries() {
     final design = context.design;
     final entryHeight = LoftifyTagDiscoveryCard.preferredHeight(context);
-    
-    // ===== 模块屏蔽逻辑 =====
     bool showCollection = _tagDetailData!.collectionRank != null && !ContentSettings.blockCollection;
     bool showRelatedTags = StringUtil.isNotEmpty(_tagDetailData!.relatedTags) && !ContentSettings.blockRelatedTags;
     bool showTagDress = controlProvider.globalControl.showTagDress && _tagDetailData!.propGiftTagConfig != null && !ContentSettings.blockRelatedDress;
-
     bool showEntries = showCollection || showRelatedTags || showTagDress;
 
     return showEntries
@@ -521,57 +404,22 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
               builder: (context, constraints) {
                 final inset = _contentInsetFor(constraints.maxWidth);
                 return ListView(
-                  padding: EdgeInsets.only(
-                    left: inset,
-                    right: inset,
-                    bottom: design.spacing.lg,
-                  ),
+                  padding: EdgeInsets.only(left: inset, right: inset, bottom: design.spacing.lg),
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
                   children: [
                     if (showCollection)
-                      _buildEntryItem(
-                        darkBg: AssetUtil.collectionDarkIllust,
-                        lightBg: AssetUtil.collectionLightIllust,
-                        title: appLocalizations.collectionGrain,
-                        desc: appLocalizations.collectionGrainDetail(
-                          _tagDetailData!.collectionRank!.title,
-                        ),
-                        onTap: () {
-                          RouteUtil.pushPanelCupertinoRoute(
-                            context,
-                            TagCollectionGrainScreen(tag: widget.tag),
-                          );
-                        },
-                      ),
+                      _buildEntryItem(darkBg: AssetUtil.collectionDarkIllust, lightBg: AssetUtil.collectionLightIllust, title: appLocalizations.collectionGrain, desc: appLocalizations.collectionGrainDetail(_tagDetailData!.collectionRank!.title), onTap: () {
+                        RouteUtil.pushPanelCupertinoRoute(context, TagCollectionGrainScreen(tag: widget.tag));
+                      }),
                     if (showRelatedTags)
-                      _buildEntryItem(
-                        darkBg: AssetUtil.tagDarkIllust,
-                        lightBg: AssetUtil.tagLightIllust,
-                        title: appLocalizations.relatedTag,
-                        desc: _tagDetailData!.relatedTags,
-                        onTap: () {
-                          RouteUtil.pushPanelCupertinoRoute(
-                            context,
-                            TagRelatedScreen(tag: widget.tag),
-                          );
-                        },
-                      ),
+                      _buildEntryItem(darkBg: AssetUtil.tagDarkIllust, lightBg: AssetUtil.tagLightIllust, title: appLocalizations.relatedTag, desc: _tagDetailData!.relatedTags, onTap: () {
+                        RouteUtil.pushPanelCupertinoRoute(context, TagRelatedScreen(tag: widget.tag));
+                      }),
                     if (showTagDress)
-                      _buildEntryItem(
-                        darkBg: AssetUtil.dressDarkIllust,
-                        lightBg: AssetUtil.dressLightIllust,
-                        title: appLocalizations.relatedDressShort,
-                        desc: appLocalizations.relatedDressShortDetail(
-                          _tagDetailData!.propGiftTagConfig!.slotCount,
-                        ),
-                        onTap: () {
-                          RouteUtil.pushPanelCupertinoRoute(
-                            context,
-                            DressScreen(tag: widget.tag),
-                          );
-                        },
-                      ),
+                      _buildEntryItem(darkBg: AssetUtil.dressDarkIllust, lightBg: AssetUtil.dressLightIllust, title: appLocalizations.relatedDressShort, desc: appLocalizations.relatedDressShortDetail(_tagDetailData!.propGiftTagConfig!.slotCount), onTap: () {
+                        RouteUtil.pushPanelCupertinoRoute(context, DressScreen(tag: widget.tag));
+                      }),
                   ],
                 );
               },
@@ -580,13 +428,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
         : emptyWidget;
   }
 
-  Widget _buildEntryItem({
-    required String lightBg,
-    required String darkBg,
-    required String title,
-    required String desc,
-    required VoidCallback onTap,
-  }) {
+  Widget _buildEntryItem({required String lightBg, required String darkBg, required String title, required String desc, required VoidCallback onTap}) {
     final design = context.design;
     final entryHeight = LoftifyTagDiscoveryCard.preferredHeight(context);
     final entryWidth = LoftifyTagDiscoveryCard.preferredWidth(context);
@@ -596,14 +438,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
         title: title,
         description: desc,
         onTap: onTap,
-        illustration: AssetUtil.loadDouble(
-          context,
-          lightBg,
-          darkBg,
-          width: entryWidth,
-          height: entryHeight,
-          fit: BoxFit.cover,
-        ),
+        illustration: AssetUtil.loadDouble(context, lightBg, darkBg, width: entryWidth, height: entryHeight, fit: BoxFit.cover),
       ),
     );
   }
@@ -620,37 +455,24 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
           child: _buildContentFrame(
             _buildFilterStrip(
               selectedIndex: _currentNewestIndex,
-              labels: [
-                appLocalizations.releaseRecently,
-                appLocalizations.commentRecently,
-              ],
+              labels: [appLocalizations.releaseRecently, appLocalizations.commentRecently],
               onSelected: (index) {
                 setState(() {
                   _currentNewestIndex = index;
-                  _newestParams = _newestParams.copyWith(
-                    tagPostResultType: index == 0
-                        ? TagPostResultType.newPost
-                        : TagPostResultType.newComment,
-                  );
+                  _newestParams = _newestParams.copyWith(tagPostResultType: index == 0 ? TagPostResultType.newPost : TagPostResultType.newComment);
                 });
                 _persistFilter(HiveUtil.tagNewestFilterKey, _newestParams);
                 _refreshTabData(1);
               },
               onFilter: () {
-                BottomSheetBuilder.showBottomSheet(
-                  context,
-                  (context) => NewestFilterBottomSheet(
-                    params: _newestParams.clone(),
-                    onConfirm: (params) {
-                      _newestParams = params;
-                      _persistFilter(
-                        HiveUtil.tagNewestFilterKey,
-                        _newestParams,
-                      );
-                      _refreshTabData(1);
-                    },
-                  ),
-                );
+                BottomSheetBuilder.showBottomSheet(context, (context) => NewestFilterBottomSheet(
+                  params: _newestParams.clone(),
+                  onConfirm: (params) {
+                    _newestParams = params;
+                    _persistFilter(HiveUtil.tagNewestFilterKey, _newestParams);
+                    _refreshTabData(1);
+                  },
+                ));
               },
             ),
             top: design.spacing.md,
@@ -673,13 +495,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
           child: _buildContentFrame(
             _buildFilterStrip(
               selectedIndex: _currentHottestIndex,
-              labels: [
-                appLocalizations.all,
-                appLocalizations.dayRank,
-                appLocalizations.weekRank,
-                appLocalizations.monthRank,
-              ],
-              // ===== 修复：手动切换榜单时，清空所有时间参数 =====
+              labels: [appLocalizations.all, appLocalizations.dayRank, appLocalizations.weekRank, appLocalizations.monthRank],
               onSelected: (index) {
                 setState(() {
                   _currentHottestIndex = index;
@@ -690,31 +506,23 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
                       2 => TagPostResultType.week,
                       _ => TagPostResultType.month,
                     },
-                    postYm: "", // 清空时间，以榜单为准
+                    postYm: "",
                   );
                 });
                 ContentSettings.tagSelectedYear = 0;
                 ContentSettings.tagSelectedMonth = 0;
-                
                 _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
                 _hottestKey.currentState?.forceApplyParams(_hottestParams);
               },
-              // ==================================================
               onFilter: () {
-                BottomSheetBuilder.showBottomSheet(
-                  context,
-                  (context) => NewestFilterBottomSheet(
-                    params: _hottestParams.clone(),
-                    onConfirm: (params) {
-                      _hottestParams = params;
-                      _persistFilter(
-                        HiveUtil.tagHottestFilterKey,
-                        _hottestParams,
-                      );
-                      _hottestKey.currentState?.forceApplyParams(_hottestParams);
-                    },
-                  ),
-                );
+                BottomSheetBuilder.showBottomSheet(context, (context) => NewestFilterBottomSheet(
+                  params: _hottestParams.clone(),
+                  onConfirm: (params) {
+                    _hottestParams = params;
+                    _persistFilter(HiveUtil.tagHottestFilterKey, _hottestParams);
+                    _hottestKey.currentState?.forceApplyParams(_hottestParams);
+                  },
+                ));
               },
             ),
             top: design.spacing.md,
@@ -725,16 +533,9 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
     );
   }
 
-  Widget _buildFilterStrip({
-    required int selectedIndex,
-    required List<String> labels,
-    required ValueChanged<int> onSelected,
-    required VoidCallback onFilter,
-  }) {
+  Widget _buildFilterStrip({required int selectedIndex, required List<String> labels, required ValueChanged<int> onSelected, required VoidCallback onFilter}) {
     final design = context.design;
-    final segmentTextStyle = design.typography.label.copyWith(
-      color: design.colors.textPrimary,
-    );
+    final segmentTextStyle = design.typography.label.copyWith(color: design.colors.textPrimary);
     return Row(
       children: [
         Expanded(
@@ -743,29 +544,17 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
             innerPadding: EdgeInsets.all(design.spacing.xxs),
             padding: design.spacing.md,
             height: 40,
-            decoration: BoxDecoration(
-              color: design.colors.surfaceMuted,
-              borderRadius: BorderRadius.circular(design.radii.full),
-            ),
+            decoration: BoxDecoration(color: design.colors.surfaceMuted, borderRadius: BorderRadius.circular(design.radii.full)),
             thumbDecoration: BoxDecoration(
               color: design.colors.surfaceRaised,
               borderRadius: BorderRadius.circular(design.radii.full),
-              border: Border.all(
-                color: design.colors.outline,
-                width: design.borders.hairline,
-              ),
+              border: Border.all(color: design.colors.outline, width: design.borders.hairline),
             ),
             duration: design.motion.effective(context, design.motion.state),
             curve: design.motion.enterCurve,
             children: {
               for (var index = 0; index < labels.length; index++)
-                index: Text(
-                  labels[index],
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.fade,
-                  style: segmentTextStyle,
-                ),
+                index: Text(labels[index], maxLines: 1, softWrap: false, overflow: TextOverflow.fade, style: segmentTextStyle),
             },
             initialValue: selectedIndex,
             onValueChanged: onSelected,
@@ -786,12 +575,7 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   PreferredSizeWidget _buildAppBar() {
     return ResponsiveAppBar(
       showBack: true,
-      titleWidget: Text(
-        appLocalizations.tag,
-        style: Theme.of(context).textTheme.titleMedium?.apply(
-              fontWeightDelta: 2,
-            ),
-      ),
+      titleWidget: Text(appLocalizations.tag, style: Theme.of(context).textTheme.titleMedium?.apply(fontWeightDelta: 2)),
       actions: [..._buildButtons()],
     );
   }
@@ -799,20 +583,10 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
   List<Widget> _buildButtons([bool small = false]) {
     return [
       const SizedBox(width: 5),
-      ChewieIconButton(
-        icon: LoftifyIcons.search,
-        tooltip: appLocalizations.search,
-        iconSize: small ? 20 : 24,
-        onPressed: () {
-          RouteUtil.pushPanelCupertinoRoute(
-              context, TagInsearchScreen(tag: widget.tag));
-        },
-      ),
+      ChewieIconButton(icon: LoftifyIcons.search, tooltip: appLocalizations.search, iconSize: small ? 20 : 24, onPressed: () => RouteUtil.pushPanelCupertinoRoute(context, TagInsearchScreen(tag: widget.tag))),
       const SizedBox(width: 5),
       ChewieIconButton(
-        icon: _postLayoutType == PostLayoutType.waterfallflow
-            ? LoftifyIcons.listLayout
-            : LoftifyIcons.gridLayout,
+        icon: _postLayoutType == PostLayoutType.waterfallflow ? LoftifyIcons.listLayout : LoftifyIcons.gridLayout,
         tooltip: appLocalizations.layoutSetting,
         iconSize: small ? 20 : 24,
         onPressed: () {
@@ -821,20 +595,12 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
           } else {
             _postLayoutType = PostLayoutType.waterfallflow;
           }
-          ChewieHiveUtil.put(
-              HiveUtil.tagDetailPostLayoutTypeKey, _postLayoutType.index);
+          ChewieHiveUtil.put(HiveUtil.tagDetailPostLayoutTypeKey, _postLayoutType.index);
           setState(() {});
         },
       ),
       const SizedBox(width: 5),
-      ChewieIconButton(
-        icon: LoftifyIcons.moreVertical,
-        tooltip: appLocalizations.moreInfo,
-        iconSize: small ? 20 : 24,
-        onPressed: () {
-          BottomSheetBuilder.showContextMenu(context, _buildMoreButtons());
-        },
-      ),
+      ChewieIconButton(icon: LoftifyIcons.moreVertical, tooltip: appLocalizations.moreInfo, iconSize: small ? 20 : 24, onPressed: () => BottomSheetBuilder.showContextMenu(context, _buildMoreButtons())),
     ];
   }
 
@@ -842,21 +608,9 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
     String url = LoftifyUriUtil.getTagUrlByTagName(widget.tag);
     return FlutterContextMenu(
       entries: [
-        FlutterContextMenuItem(
-          appLocalizations.copyLink,
-          iconData: LoftifyIcons.copy,
-          onPressed: () {
-            ChewieUtils.copy(context, url);
-          },
-        ),
-        FlutterContextMenuItem(appLocalizations.openWithBrowser,
-            iconData: LoftifyIcons.openExternal, onPressed: () {
-          UriUtil.openExternal(url);
-        }),
-        FlutterContextMenuItem(appLocalizations.shareToOtherApps,
-            iconData: LoftifyIcons.share, onPressed: () {
-          UriUtil.share(url);
-        }),
+        FlutterContextMenuItem(appLocalizations.copyLink, iconData: LoftifyIcons.copy, onPressed: () => ChewieUtils.copy(context, url)),
+        FlutterContextMenuItem(appLocalizations.openWithBrowser, iconData: LoftifyIcons.openExternal, onPressed: () => UriUtil.openExternal(url)),
+        FlutterContextMenuItem(appLocalizations.shareToOtherApps, iconData: LoftifyIcons.share, onPressed: () => UriUtil.share(url)),
       ],
     );
   }
@@ -864,59 +618,30 @@ class _TagDetailScreenState extends BaseDynamicState<TagDetailScreen>
 
 double _tagResultContentInset(BuildContext context, double viewportWidth) {
   final design = context.design;
-  final centeredInset = ((viewportWidth - design.grid.maximumContentWidth) / 2)
-      .clamp(0.0, double.infinity);
+  final centeredInset = ((viewportWidth - design.grid.maximumContentWidth) / 2).clamp(0.0, double.infinity);
   return centeredInset + design.grid.pagePaddingFor(viewportWidth);
 }
 
-Widget _buildTagPostGrid(
-  BuildContext context, {
-  required ScrollController? controller,
-  required ScrollPhysics physics,
-  required List<PostListItem> posts,
-  Function(int)? onBlockUser,
-}) {
+Widget _buildTagPostGrid(BuildContext context, {required ScrollController? controller, required ScrollPhysics physics, required List<PostListItem> posts, Function(int)? onBlockUser}) {
   final design = context.design;
   return LayoutBuilder(
     builder: (context, constraints) {
-      final horizontalInset =
-          _tagResultContentInset(context, constraints.maxWidth);
-      final geometry = LoftifyArchiveGridGeometry.calculate(
-        constraints.maxWidth - horizontalInset * 2,
-      );
+      final horizontalInset = _tagResultContentInset(context, constraints.maxWidth);
+      final geometry = LoftifyArchiveGridGeometry.calculate(constraints.maxWidth - horizontalInset * 2);
       return GridView.builder(
         controller: controller,
         physics: physics,
-        padding: EdgeInsets.only(
-          top: design.spacing.sectionTop,
-          left: horizontalInset,
-          right: horizontalInset,
-        ),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: geometry.columnCount,
-          mainAxisSpacing: geometry.spacing,
-          crossAxisSpacing: geometry.spacing,
-        ),
+        padding: EdgeInsets.only(top: design.spacing.sectionTop, left: horizontalInset, right: horizontalInset),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: geometry.columnCount, mainAxisSpacing: geometry.spacing, crossAxisSpacing: geometry.spacing),
         itemCount: posts.length,
-        itemBuilder: (context, index) =>
-            RecommendFlowItemBuilder.buildNineGridPostItem(
-          context,
-          posts[index],
-          wh: geometry.tileExtent,
-        ),
+        itemBuilder: (context, index) => RecommendFlowItemBuilder.buildNineGridPostItem(context, posts[index], wh: geometry.tileExtent),
       );
     },
   );
 }
 
 class RecommendTab extends StatefulWidget {
-  const RecommendTab({
-    super.key,
-    required this.tag,
-    this.scrollController,
-    required this.postLayoutType,
-  });
-
+  const RecommendTab({super.key, required this.tag, this.scrollController, required this.postLayoutType});
   final String tag;
   final ScrollController? scrollController;
   final PostLayoutType postLayoutType;
@@ -925,31 +650,25 @@ class RecommendTab extends StatefulWidget {
   State<StatefulWidget> createState() => RecommendTabState();
 }
 
-class RecommendTabState extends BaseDynamicState<RecommendTab>
-    with AutomaticKeepAliveClientMixin {
+class RecommendTabState extends BaseDynamicState<RecommendTab> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
   final List<PostListItem> _recommendList = [];
-  final EasyRefreshController _recommendResultRefreshController =
-      EasyRefreshController();
+  final EasyRefreshController _recommendResultRefreshController = EasyRefreshController();
   int _recommendResultOffset = 0;
   bool _recommendResultLoading = false;
   bool _recommendNoMore = false;
 
-  bool get isWaterfallFlow =>
-      widget.postLayoutType == PostLayoutType.waterfallflow;
-
-  bool get refreshReady =>
-      (widget.scrollController?.hasClients ?? false) ||
-      _recommendResultRefreshController.headerState != null;
+  bool get isWaterfallFlow => widget.postLayoutType == PostLayoutType.waterfallflow;
+  bool get refreshReady => (widget.scrollController?.hasClients ?? false) || _recommendResultRefreshController.headerState != null;
 
   Future<void> callRefresh() => _recommendResultRefreshController.callRefresh(
-        overOffset: 28,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-        scrollController: widget.scrollController,
-        jumpToEdge: false,
-      );
+    overOffset: 28,
+    duration: const Duration(milliseconds: 260),
+    curve: Curves.easeOutCubic,
+    scrollController: widget.scrollController,
+    jumpToEdge: false,
+  );
 
   @override
   void dispose() {
@@ -957,25 +676,17 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
     super.dispose();
   }
 
-  void _handleBlockUser(int blogId) {
-    _recommendList.removeWhere((item) =>
-        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
-    if (mounted) {
-      setState(() {});
-      IToast.showTop("健康值+1");
-    }
+  // 修改点：改成删除单篇作品
+  void _handleBlockUser(int blogId, int postId) {
+    _recommendList.removeWhere((item) => (item.blogInfo?.blogId == blogId && (item.postData?.postView.id ?? item.itemId) == postId) || item.itemId == postId);
+    if (mounted) setState(() {});
   }
 
   Future<IndicatorResult> _fetchRecommendResult({bool refresh = false}) async {
-    if (_recommendResultLoading || (!refresh && _recommendNoMore)) {
-      return IndicatorResult.none;
-    }
+    if (_recommendResultLoading || (!refresh && _recommendNoMore)) return IndicatorResult.none;
     if (refresh) _recommendNoMore = false;
     _recommendResultLoading = true;
-    return await TagApi.getRecommendList(
-      tag: widget.tag,
-      offset: refresh ? 0 : _recommendResultOffset,
-    ).then<IndicatorResult>((value) {
+    return await TagApi.getRecommendList(tag: widget.tag, offset: refresh ? 0 : _recommendResultOffset).then<IndicatorResult>((value) {
       try {
         if (value['code'] != 0) {
           IToast.showTop(value['msg']);
@@ -990,25 +701,15 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
             final rawList = value['data']['list'] as List;
             rawListIsEmpty = rawList.isEmpty;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
-            newPosts = filteredRawList
-                .whereType<Map>()
-                .map((e) =>
-                    PostListItem.fromJson(Map<String, dynamic>.from(e)))
-                .toList();
+            newPosts = filteredRawList.whereType<Map>().map((e) => PostListItem.fromJson(Map<String, dynamic>.from(e))).toList();
 
-            newPosts.removeWhere((e) =>
-                _recommendList.any((element) => element.itemId == e.itemId));
+            newPosts.removeWhere((e) => _recommendList.any((element) => element.itemId == e.itemId));
             _recommendList.addAll(newPosts);
-            _recommendList
-                .removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
+            _recommendList.removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
           _recommendNoMore = rawListIsEmpty;
-          if (_recommendNoMore && !refresh) {
-            return IndicatorResult.noMore;
-          } else {
-            return IndicatorResult.success;
-          }
+          return _recommendNoMore && !refresh ? IndicatorResult.noMore : IndicatorResult.success;
         }
       } catch (e, t) {
         ILogger.error("Failed to load tag recommend result list", e, t);
@@ -1030,9 +731,7 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
     return EasyRefresh.builder(
       controller: _recommendResultRefreshController,
       refreshOnStart: false,
-      onRefresh: () async {
-        return await _fetchRecommendResult(refresh: true);
-      },
+      onRefresh: () async => await _fetchRecommendResult(refresh: true),
       onLoad: _recommendNoMore ? null : _fetchRecommendResult,
       triggerAxis: Axis.vertical,
       childBuilder: (context, physics) => isWaterfallFlow
@@ -1040,11 +739,7 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
               controller: widget.scrollController,
               cacheExtent: MediaQuery.sizeOf(context).height,
               physics: physics,
-              padding: EdgeInsets.only(
-                top: design.spacing.sectionTop,
-                left: horizontalInset,
-                right: horizontalInset,
-              ),
+              padding: EdgeInsets.only(top: design.spacing.sectionTop, left: horizontalInset, right: horizontalInset),
               gridDelegate: SliverWaterfallFlowDelegateWithMaxCrossAxisExtent(
                 mainAxisSpacing: gutter,
                 crossAxisSpacing: gutter,
@@ -1060,25 +755,13 @@ class RecommendTabState extends BaseDynamicState<RecommendTab>
               },
               itemCount: _recommendList.length,
             )
-          : _buildTagPostGrid(
-              context,
-              controller: widget.scrollController,
-              physics: physics,
-              posts: _recommendList,
-            ),
+          : _buildTagPostGrid(context, controller: widget.scrollController, physics: physics, posts: _recommendList),
     );
   }
 }
 
 class HottestTab extends StatefulWidget {
-  const HottestTab({
-    super.key,
-    required this.tag,
-    this.scrollController,
-    required this.postLayoutType,
-    required this.initialParams,
-  });
-
+  const HottestTab({super.key, required this.tag, this.scrollController, required this.postLayoutType, required this.initialParams});
   final String tag;
   final PostLayoutType postLayoutType;
   final ScrollController? scrollController;
@@ -1088,25 +771,19 @@ class HottestTab extends StatefulWidget {
   State<StatefulWidget> createState() => HottestTabState();
 }
 
-class HottestTabState extends BaseDynamicState<HottestTab>
-    with AutomaticKeepAliveClientMixin {
+class HottestTabState extends BaseDynamicState<HottestTab> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
   final List<PostListItem> _hottestList = [];
-  final EasyRefreshController _hottestResultRefreshController =
-      EasyRefreshController();
+  final EasyRefreshController _hottestResultRefreshController = EasyRefreshController();
 
   GetTagPostListParams? _hottestParams;
   int _hottestResultOffset = 0;
   bool _hottestNoMore = false;
   bool _hottestResultLoading = false;
 
-  bool get isWaterfallFlow =>
-      widget.postLayoutType == PostLayoutType.waterfallflow;
-
-  bool get refreshReady =>
-      (widget.scrollController?.hasClients ?? false) ||
-      _hottestResultRefreshController.headerState != null;
+  bool get isWaterfallFlow => widget.postLayoutType == PostLayoutType.waterfallflow;
+  bool get refreshReady => (widget.scrollController?.hasClients ?? false) || _hottestResultRefreshController.headerState != null;
 
   @override
   void initState() {
@@ -1125,12 +802,11 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     );
   }
 
-  // ===== 强制覆盖参数并刷新数据 =====
   void forceApplyParams(GetTagPostListParams newParam) {
     _hottestParams = newParam.clone();
     _hottestResultOffset = 0;
     _hottestNoMore = false;
-    _hottestList.clear(); // 核心：强制清空界面旧数据
+    _hottestList.clear();
     if (mounted) setState(() {});
     _fetchHottestResult(refresh: true);
   }
@@ -1141,37 +817,26 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     super.dispose();
   }
 
-  void _handleBlockUser(int blogId) {
-    _hottestList.removeWhere((item) =>
-        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
-    if (mounted) {
-      setState(() {});
-      IToast.showTop("健康值+1");
-    }
+  // 修改点：改成删除单篇作品
+  void _handleBlockUser(int blogId, int postId) {
+    _hottestList.removeWhere((item) => (item.blogInfo?.blogId == blogId && (item.postData?.postView.id ?? item.itemId) == postId) || item.itemId == postId);
+    if (mounted) setState(() {});
   }
 
   Future<IndicatorResult> _fetchHottestResult({bool refresh = false}) async {
-    if (_hottestResultLoading || (!refresh && _hottestNoMore)) {
-      return IndicatorResult.none;
-    }
+    if (_hottestResultLoading || (!refresh && _hottestNoMore)) return IndicatorResult.none;
     if (refresh) _hottestNoMore = false;
     _hottestResultLoading = true;
 
     final String postYm = _hottestParams!.postYm;
     TagPostResultType finalResultType = _hottestParams!.tagPostResultType;
+    if (postYm.isNotEmpty) finalResultType = TagPostResultType.total;
 
-    // 核心：只要有 postYm，强制覆盖为 total，强制 offset 为 0
-    if (postYm.isNotEmpty) {
-      finalResultType = TagPostResultType.total;
-    }
-
-    return await TagApi.getPostList(
-      _hottestParams!.copyWith(
-        offset: postYm.isNotEmpty ? 0 : (refresh ? 0 : _hottestResultOffset),
-        tagPostResultType: finalResultType,
-        postYm: postYm,
-      ),
-    ).then<IndicatorResult>((value) {
+    return await TagApi.getPostList(_hottestParams!.copyWith(
+      offset: postYm.isNotEmpty ? 0 : (refresh ? 0 : _hottestResultOffset),
+      tagPostResultType: finalResultType,
+      postYm: postYm,
+    )).then<IndicatorResult>((value) {
       try {
         if (value['code'] != 0) {
           IToast.showTop(value['msg']);
@@ -1186,25 +851,15 @@ class HottestTabState extends BaseDynamicState<HottestTab>
             final rawList = value['data']['list'] as List;
             rawListIsEmpty = rawList.isEmpty;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
-            newPosts = filteredRawList
-                .whereType<Map>()
-                .map((e) =>
-                    PostListItem.fromJson(Map<String, dynamic>.from(e)))
-                .toList();
+            newPosts = filteredRawList.whereType<Map>().map((e) => PostListItem.fromJson(Map<String, dynamic>.from(e))).toList();
 
-            newPosts.removeWhere((e) =>
-                _hottestList.any((element) => element.itemId == e.itemId));
+            newPosts.removeWhere((e) => _hottestList.any((element) => element.itemId == e.itemId));
             _hottestList.addAll(newPosts);
-            _hottestList
-                .removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
+            _hottestList.removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
           _hottestNoMore = rawListIsEmpty;
-          if (_hottestNoMore && !refresh) {
-            return IndicatorResult.noMore;
-          } else {
-            return IndicatorResult.success;
-          }
+          return _hottestNoMore && !refresh ? IndicatorResult.noMore : IndicatorResult.success;
         }
       } catch (e, t) {
         ILogger.error("Failed to load tag hottest result list", e, t);
@@ -1226,9 +881,7 @@ class HottestTabState extends BaseDynamicState<HottestTab>
     return EasyRefresh.builder(
       controller: _hottestResultRefreshController,
       refreshOnStart: false,
-      onRefresh: () async {
-        return await _fetchHottestResult(refresh: true);
-      },
+      onRefresh: () async => await _fetchHottestResult(refresh: true),
       onLoad: _hottestNoMore ? null : _fetchHottestResult,
       triggerAxis: Axis.vertical,
       childBuilder: (context, physics) => isWaterfallFlow
@@ -1236,11 +889,7 @@ class HottestTabState extends BaseDynamicState<HottestTab>
               controller: widget.scrollController,
               cacheExtent: MediaQuery.sizeOf(context).height,
               physics: physics,
-              padding: EdgeInsets.only(
-                top: design.spacing.sectionTop,
-                left: horizontalInset,
-                right: horizontalInset,
-              ),
+              padding: EdgeInsets.only(top: design.spacing.sectionTop, left: horizontalInset, right: horizontalInset),
               gridDelegate: SliverWaterfallFlowDelegateWithMaxCrossAxisExtent(
                 mainAxisSpacing: gutter,
                 crossAxisSpacing: gutter,
@@ -1256,25 +905,13 @@ class HottestTabState extends BaseDynamicState<HottestTab>
               },
               itemCount: _hottestList.length,
             )
-          : _buildTagPostGrid(
-              context,
-              controller: widget.scrollController,
-              physics: physics,
-              posts: _hottestList,
-            ),
+          : _buildTagPostGrid(context, controller: widget.scrollController, physics: physics, posts: _hottestList),
     );
   }
 }
 
 class NewestTab extends StatefulWidget {
-  const NewestTab({
-    super.key,
-    required this.tag,
-    this.scrollController,
-    required this.postLayoutType,
-    required this.initialParams,
-  });
-
+  const NewestTab({super.key, required this.tag, this.scrollController, required this.postLayoutType, required this.initialParams});
   final String tag;
   final PostLayoutType postLayoutType;
   final ScrollController? scrollController;
@@ -1284,24 +921,18 @@ class NewestTab extends StatefulWidget {
   State<StatefulWidget> createState() => NewestTabState();
 }
 
-class NewestTabState extends BaseDynamicState<NewestTab>
-    with AutomaticKeepAliveClientMixin {
+class NewestTabState extends BaseDynamicState<NewestTab> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
   final List<PostListItem> _newestList = [];
-  final EasyRefreshController _newestResultRefreshController =
-      EasyRefreshController();
+  final EasyRefreshController _newestResultRefreshController = EasyRefreshController();
   GetTagPostListParams? _newestParams;
   int _newestResultOffset = 0;
   bool _newestResultLoading = false;
   bool _newestNoMore = false;
 
-  bool get isWaterfallFlow =>
-      widget.postLayoutType == PostLayoutType.waterfallflow;
-
-  bool get refreshReady =>
-      (widget.scrollController?.hasClients ?? false) ||
-      _newestResultRefreshController.headerState != null;
+  bool get isWaterfallFlow => widget.postLayoutType == PostLayoutType.waterfallflow;
+  bool get refreshReady => (widget.scrollController?.hasClients ?? false) || _newestResultRefreshController.headerState != null;
 
   @override
   void initState() {
@@ -1326,24 +957,17 @@ class NewestTabState extends BaseDynamicState<NewestTab>
     super.dispose();
   }
 
-  void _handleBlockUser(int blogId) {
-    _newestList.removeWhere((item) =>
-        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
-    if (mounted) {
-      setState(() {});
-      IToast.showTop("健康值+1");
-    }
+  // 修改点：改成删除单篇作品
+  void _handleBlockUser(int blogId, int postId) {
+    _newestList.removeWhere((item) => (item.blogInfo?.blogId == blogId && (item.postData?.postView.id ?? item.itemId) == postId) || item.itemId == postId);
+    if (mounted) setState(() {});
   }
 
   Future<IndicatorResult> _fetchNewestResult({bool refresh = false}) async {
-    if (_newestResultLoading || (!refresh && _newestNoMore)) {
-      return IndicatorResult.none;
-    }
+    if (_newestResultLoading || (!refresh && _newestNoMore)) return IndicatorResult.none;
     if (refresh) _newestNoMore = false;
     _newestResultLoading = true;
-    return await TagApi.getPostList(
-      _newestParams!.copyWith(offset: refresh ? 0 : _newestResultOffset),
-    ).then<IndicatorResult>((value) {
+    return await TagApi.getPostList(_newestParams!.copyWith(offset: refresh ? 0 : _newestResultOffset)).then<IndicatorResult>((value) {
       try {
         if (value['code'] != 0) {
           IToast.showTop(value['msg']);
@@ -1359,25 +983,15 @@ class NewestTabState extends BaseDynamicState<NewestTab>
             final rawList = value['data']['list'] as List;
             rawListIsEmpty = rawList.isEmpty;
             final filteredRawList = MyContentFilter.filterRawList(rawList);
-            newPosts = filteredRawList
-                .whereType<Map>()
-                .map((e) =>
-                    PostListItem.fromJson(Map<String, dynamic>.from(e)))
-                .toList();
+            newPosts = filteredRawList.whereType<Map>().map((e) => PostListItem.fromJson(Map<String, dynamic>.from(e))).toList();
 
-            newPosts.removeWhere((e) =>
-                _newestList.any((element) => element.itemId == e.itemId));
+            newPosts.removeWhere((e) => _newestList.any((element) => element.itemId == e.itemId));
             _newestList.addAll(newPosts);
-            _newestList
-                .removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
+            _newestList.removeWhere((e) => RecommendFlowItemBuilder.isInvalid(e));
           }
           if (mounted) setState(() {});
           _newestNoMore = rawListIsEmpty;
-          if (_newestNoMore && !refresh) {
-            return IndicatorResult.noMore;
-          } else {
-            return IndicatorResult.success;
-          }
+          return _newestNoMore && !refresh ? IndicatorResult.noMore : IndicatorResult.success;
         }
       } catch (e, t) {
         ILogger.error("Failed to load tag newest result list", e, t);
@@ -1400,9 +1014,7 @@ class NewestTabState extends BaseDynamicState<NewestTab>
     return EasyRefresh.builder(
       controller: _newestResultRefreshController,
       refreshOnStart: false,
-      onRefresh: () async {
-        return await _fetchNewestResult(refresh: true);
-      },
+      onRefresh: () async => await _fetchNewestResult(refresh: true),
       onLoad: _newestNoMore ? null : _fetchNewestResult,
       triggerAxis: Axis.vertical,
       childBuilder: (context, physics) => isWaterfallFlow
@@ -1410,11 +1022,7 @@ class NewestTabState extends BaseDynamicState<NewestTab>
               controller: widget.scrollController,
               cacheExtent: MediaQuery.sizeOf(context).height,
               physics: physics,
-              padding: EdgeInsets.only(
-                top: design.spacing.sectionTop,
-                left: horizontalInset,
-                right: horizontalInset,
-              ),
+              padding: EdgeInsets.only(top: design.spacing.sectionTop, left: horizontalInset, right: horizontalInset),
               gridDelegate: SliverWaterfallFlowDelegateWithMaxCrossAxisExtent(
                 mainAxisSpacing: gutter,
                 crossAxisSpacing: gutter,
@@ -1430,12 +1038,7 @@ class NewestTabState extends BaseDynamicState<NewestTab>
               },
               itemCount: _newestList.length,
             )
-          : _buildTagPostGrid(
-              context,
-              controller: widget.scrollController,
-              physics: physics,
-              posts: _newestList,
-            ),
+          : _buildTagPostGrid(context, controller: widget.scrollController, physics: physics, posts: _newestList),
     );
   }
 }

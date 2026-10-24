@@ -17,7 +17,7 @@ import '../../l10n/l10n.dart';
 import 'search_screen.dart';
 import '../../Utils/content_settings.dart';
 import '../../Utils/my_content_filter.dart';
-import '../../Utils/global_filter_overlay.dart'; // 引入全站筛选壳子
+import '../../Utils/global_filter_overlay.dart';
 import 'welcome_screen.dart';
 
 int krefreshTimeout = 300;
@@ -80,7 +80,6 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
     if (data is! Map) throw const PagedDataException('');
     
     final rawItems = data['list'] is List ? List<dynamic>.from(data['list'] as List) : const <dynamic>[];
-    // ===== 底层过滤 =====
     final filteredRawItems = MyContentFilter.filterRawList(rawItems);
     
     final items = <PostListItem>[];
@@ -113,13 +112,13 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
     super.dispose();
   }
 
-  // 拉黑回调
-  void _handleBlockUser(int blogId) {
-    _pagingController.items.removeWhere((item) => (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
-    if (mounted) {
-      setState(() {});
-      IToast.showTop("已拉黑");
-    }
+  // 修改点：参数变成两个，精准移除当前作品
+  void _handleBlockUser(int blogId, int postId) {
+    _pagingController.items.removeWhere((item) {
+      final id = item.postData?.postView.id ?? item.itemId;
+      return id == postId;
+    });
+    if (mounted) setState(() {});
   }
 
   @override
@@ -137,11 +136,9 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
     final hideAppBar = context.select<AppProvider, bool>((provider) => provider.shouldHideHomeAppBarOnScroll);
     final showSearchAction = context.select<AppProvider, bool>((provider) => provider.shouldHideSearchNavigation);
 
-    // 整个首页套上带右上角筛选的壳子
     return GlobalFilterWrapper(
       isTagPage: false,
       onFilterChanged: () {
-        // 如果筛选条件变了，自动刷新首页
         _onRefresh();
       },
       child: Scaffold(
@@ -212,7 +209,7 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
                           context, 
                           item, 
                           showMoreButton: true,
-                          onBlockUser: _handleBlockUser, // 传入拉黑回调
+                          onBlockUser: _handleBlockUser, // 传入新回调
                         ),
                       );
                     },
@@ -223,7 +220,6 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
             ],
           ),
         ),
-        // 这里保留原来的右下角悬浮按钮（但因为你之前已经有了 panel_screen 的全局悬浮，这里其实可以删掉，不过为了不报错我先留着，不影响 UI）
         Positioned(
           right: horizontalInset,
           bottom: ResponsiveUtil.isLandscapeLayout() ? design.spacing.xl : 76,
@@ -237,7 +233,6 @@ class HomeScreenState extends BaseDynamicState<HomeScreen>
   }
 
   List<Widget> _buildActions(bool showSearchAction) {
-    // 删除了原有的右上角漏斗图标，因为现在用了全站通用的 GlobalFilterWrapper
     return [
       if (showSearchAction) _buildSearchAction(),
       const SizedBox(width: 8),

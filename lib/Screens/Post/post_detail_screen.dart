@@ -446,9 +446,7 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
   }
 
   _fetchHotComments({int? expectedPostId}) async {
-    // ===== 核心：如果屏蔽评论区，不请求评论接口 =====
     if (ContentSettings.blockComments) return IndicatorResult.none;
-    // ============================================
     
     final requestPostId = expectedPostId ?? postId;
     final requestBlogId = blogId;
@@ -739,10 +737,8 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
     await Future.wait<dynamic>([
       _fetchGift(expectedPostId: expectedPostId),
       _fetchHotComments(expectedPostId: expectedPostId),
-      // ===== 核心：如果屏蔽了推荐流，跳过加载 =====
       if (!ContentSettings.blockAutoRecommend)
         _fetchRecommendPosts(append: false, expectedPostId: expectedPostId),
-      // ============================================
     ]);
   }
 
@@ -842,9 +838,7 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
     bool append = true,
     int? expectedPostId,
   }) async {
-    // ===== 核心：如果屏蔽了推荐流，直接返回 =====
     if (ContentSettings.blockAutoRecommend) return IndicatorResult.none;
-    // ============================================
 
     final requestPostId = expectedPostId ?? postId;
     final requestBlogId = blogId;
@@ -874,9 +868,7 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
         } else {
           List<dynamic> tmp = value['data']['list'];
           
-          // ===== 核心：在这里拦截点赞和屏蔽词 =====
           tmp = MyContentFilter.filterRawList(tmp);
-          // ============================================
 
           if (append == false) _recommendPosts.clear();
           final newPosts = tmp
@@ -2912,12 +2904,12 @@ class _PostDetailScreenState extends BaseDynamicState<PostDetailScreen>
                 context,
                 _recommendPosts[index],
                 showMoreButton: true,
-                onBlockUser: (blogId) async {
-                  _recommendPosts.removeWhere((item) =>
-                      (item.blogInfo?.blogId ??
-                          item.postData?.postView.blogId) ==
-                      blogId);
+                onBlockUser: (blogId, postId) {
+                  // 详情页拉黑逻辑：先弹窗、删作品、后发请求
+                  IToast.showTop("健康值+1");
+                  _recommendPosts.removeWhere((item) => (item.postData?.postView.id ?? item.itemId) == postId);
                   if (mounted) setState(() {});
+                  UserApi.blockOrUnBlock(isBlock: true, blogId: blogId).catchError((_) {});
                 },
               ),
             );

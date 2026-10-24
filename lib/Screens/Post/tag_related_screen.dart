@@ -71,12 +71,10 @@ class _TagRelatedScreenState extends BaseDynamicState<TagRelatedScreen>
             if (value['data']['list'] != null) {
               final rawList = value['data']['list'] as List;
               rawListIsEmpty = rawList.isEmpty;
-              final filteredRawList =
-                  MyContentFilter.filterRawList(rawList);
+              final filteredRawList = MyContentFilter.filterRawList(rawList);
               tmp = filteredRawList
                   .whereType<Map>()
-                  .map((e) =>
-                      PostListItem.fromJson(Map<String, dynamic>.from(e)))
+                  .map((e) => PostListItem.fromJson(Map<String, dynamic>.from(e)))
                   .toList();
               if (refresh) _postList.clear();
               for (var exist in _postList) {
@@ -104,31 +102,22 @@ class _TagRelatedScreenState extends BaseDynamicState<TagRelatedScreen>
     });
   }
 
-  void _handleBlockUser(int blogId) {
-    _postList.removeWhere((item) =>
-        (item.blogInfo?.blogId ?? item.postData?.postView.blogId) == blogId);
-    if (mounted) {
-      setState(() {});
-      IToast.showTop("已拉黑");
-    }
+  // 修改点：精准移除作品
+  void _handleBlockUser(int blogId, int postId) {
+    _postList.removeWhere((item) => item.itemId == postId);
+    if (mounted) setState(() {});
   }
 
   _buildMainBody() {
     return EasyRefresh.builder(
       refreshOnStart: true,
       controller: _refreshController,
-      onRefresh: () async {
-        return await _fetchResult(refresh: true);
-      },
-      onLoad: () async {
-        return await _fetchResult();
-      },
+      onRefresh: () async => await _fetchResult(refresh: true),
+      onLoad: () async => await _fetchResult(),
       triggerAxis: Axis.vertical,
       childBuilder: (context, physics) => LoadMoreNotification(
         noMore: _noMore,
-        onLoad: () async {
-          return await _fetchResult();
-        },
+        onLoad: () async => await _fetchResult(),
         child: WaterfallFlow.builder(
           cacheExtent: MediaQuery.sizeOf(context).height,
           physics: physics,

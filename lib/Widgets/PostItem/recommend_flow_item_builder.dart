@@ -119,7 +119,7 @@ class RecommendFlowItemBuilder {
     PostListItem item, {
     String? excludeTag,
     bool showMoreButton = false,
-    final Function(int blogId)? onBlockUser,
+    final Function(int blogId, int postId)? onBlockUser,
   }) {
     return WaterfallFlowPostItemWidget(
       key: ValueKey(item.postData?.postView.id ?? item.itemId),
